@@ -1,4 +1,5 @@
 ---
+export const prerender = false;   // SSR: cada acta se renderiza bajo demanda
 import Base from '../../layouts/Base.astro';
 import PuntoItem from '../../components/PuntoItem.astro';
 import { getPleno, getPuntosPleno, supabase } from '../../lib/supabase';
