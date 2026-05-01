@@ -1,11 +1,14 @@
 ---
+export const prerender = false;
 import Base from '../../layouts/Base.astro';
 import PuntoItem from '../../components/PuntoItem.astro';
 import { supabase, CATEGORIAS } from '../../lib/supabase';
 
 const { categoria } = Astro.params;
 
-if (!categoria || !CATEGORIAS[categoria]) return Astro.redirect("/temas");
+if (!categoria || !CATEGORIAS[categoria]) {
+  return Astro.redirect("/temas");
+}
 
 const label = CATEGORIAS[categoria];
 
@@ -19,10 +22,6 @@ const { data: puntos } = await supabase
   .eq("categoria", categoria)
   .order("relevancia_social", { ascending: false })
   .limit(50);
-
-export function getStaticPaths() {
-  return Object.keys(CATEGORIAS).map(cat => ({ params: { categoria: cat } }));
-}
 ---
 
 <Base
