@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL ?? "";
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -46,85 +46,103 @@ export interface Votacion {
   abstenciones: number;
 }
 
-// ── Queries ────────────────────────────────────────────────────────────────
+// ── Queries (todas con try/catch — nunca rompen el render) ─────────────────
 
 export async function getPlenos(limit = 20): Promise<Pleno[]> {
-  const { data } = await supabase
-    .from("v_plenos")
-    .select("*")
-    .eq("estado", "procesado")
-    .order("fecha", { ascending: false })
-    .limit(limit);
-  return data ?? [];
+  try {
+    const { data } = await supabase
+      .from("v_plenos")
+      .select("*")
+      .eq("estado", "procesado")
+      .order("fecha", { ascending: false })
+      .limit(limit);
+    return data ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getPleno(id: string): Promise<Pleno | null> {
-  const { data } = await supabase
-    .from("v_plenos")
-    .select("*")
-    .eq("id", id)
-    .single();
-  return data;
+  try {
+    const { data } = await supabase
+      .from("v_plenos")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 export async function getPuntosPleno(plenoId: string): Promise<Punto[]> {
-  const { data } = await supabase
-    .from("puntos")
-    .select("*")
-    .eq("pleno_id", plenoId)
-    .order("numero");
-  return data ?? [];
+  try {
+    const { data } = await supabase
+      .from("puntos")
+      .select("*")
+      .eq("pleno_id", plenoId)
+      .order("numero");
+    return data ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getPuntosRelevantes(limit = 12): Promise<any[]> {
-  const { data } = await supabase
-    .from("v_puntos_relevantes")
-    .select("*")
-    .limit(limit);
-  return data ?? [];
+  try {
+    const { data } = await supabase
+      .from("v_puntos_relevantes")
+      .select("*")
+      .limit(limit);
+    return data ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getVotacionesPunto(puntoId: string): Promise<Votacion[]> {
-  const { data } = await supabase
-    .from("votaciones")
-    .select(`
-      votos_favor, votos_contra, abstenciones,
-      partidos ( nombre, siglas, color_hex )
-    `)
-    .eq("punto_id", puntoId);
-  return (data ?? []).map((v: any) => ({
-    partido: v.partidos.nombre,
-    siglas: v.partidos.siglas,
-    color_hex: v.partidos.color_hex,
-    votos_favor: v.votos_favor,
-    votos_contra: v.votos_contra,
-    abstenciones: v.abstenciones,
-  }));
+  try {
+    const { data } = await supabase
+      .from("votaciones")
+      .select(`votos_favor, votos_contra, abstenciones, partidos ( nombre, siglas, color_hex )`)
+      .eq("punto_id", puntoId);
+    return (data ?? []).map((v: any) => ({
+      partido: v.partidos.nombre,
+      siglas: v.partidos.siglas,
+      color_hex: v.partidos.color_hex,
+      votos_favor: v.votos_favor,
+      votos_contra: v.votos_contra,
+      abstenciones: v.abstenciones,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function getPlenosFiltrados(params: {
   categoria?: string;
   municipio?: string;
-  desde?: string;
-  hasta?: string;
-  q?: string;
   page?: number;
 }): Promise<{ data: Pleno[]; count: number }> {
-  const PAGE_SIZE = 20;
-  const offset = ((params.page ?? 1) - 1) * PAGE_SIZE;
+  try {
+    const PAGE_SIZE = 20;
+    const offset = ((params.page ?? 1) - 1) * PAGE_SIZE;
 
-  let query = supabase
-    .from("v_plenos")
-    .select("*", { count: "exact" })
-    .eq("estado", "procesado");
+    let query = supabase
+      .from("v_plenos")
+      .select("*", { count: "exact" })
+      .eq("estado", "procesado");
 
-  if (params.municipio) query = query.eq("municipio", params.municipio);
+    if (params.municipio) query = query.eq("municipio", params.municipio);
 
-  const { data, count } = await query
-    .order("fecha", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
+    const { data, count } = await query
+      .order("fecha", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
 
-  return { data: data ?? [], count: count ?? 0 };
+    return { data: data ?? [], count: count ?? 0 };
+  } catch {
+    return { data: [], count: 0 };
+  }
 }
 
 export const CATEGORIAS: Record<string, string> = {
