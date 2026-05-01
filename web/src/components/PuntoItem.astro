@@ -1,0 +1,80 @@
+---
+interface Props {
+  punto: {
+    id: string;
+    numero: number;
+    titulo: string;
+    categoria: string;
+    tipo: string;
+    resultado: string;
+    unanimidad: boolean | null;
+    resumen_ia: string | null;
+    relevancia_social: number | null;
+    es_urgencia: boolean;
+  };
+}
+
+const { punto } = Astro.props;
+
+const CATEGORIAS: Record<string, string> = {
+  urbanismo: "Urbanismo", vivienda: "Vivienda", hacienda: "Hacienda",
+  medio_ambiente: "Medio Ambiente", servicios_sociales: "Serv. Sociales",
+  movilidad: "Movilidad", cultura: "Cultura", gobernanza: "Gobernanza",
+  derechos: "Derechos", seguridad: "Seguridad", educacion: "Educación", otro: "Otro",
+};
+
+const RESULTADO_LABEL: Record<string, string> = {
+  aprobado: "Aprobado", rechazado: "Rechazado",
+  enterado: "Enterado", retirado: "Retirado", sin_votacion: "—",
+};
+
+const categoriaLabel = CATEGORIAS[punto.categoria] ?? punto.categoria;
+const resultadoLabel = RESULTADO_LABEL[punto.resultado] ?? punto.resultado;
+const esRelevante = (punto.relevancia_social ?? 0) >= 4;
+---
+
+<li class:list={[
+  "py-4 border-b border-[var(--color-border)] last:border-0",
+  esRelevante && "border-l-2 border-l-[var(--color-accent)] pl-3 ml-[-0.75rem]"
+]}>
+  <div class="flex flex-wrap items-start gap-x-3 gap-y-1 mb-1">
+    <span class="text-xs text-[var(--color-ink-muted)] font-mono">{punto.numero}.</span>
+
+    <span class:list={["badge", `badge-${punto.categoria}`]}>
+      {categoriaLabel}
+    </span>
+
+    {punto.es_urgencia && (
+      <span class="badge" style="background:#fef2f2;color:#991b1b;">Urgencia</span>
+    )}
+
+    <span class:list={[
+      "text-xs font-semibold ml-auto",
+      punto.resultado === "aprobado" && "resultado-aprobado",
+      punto.resultado === "rechazado" && "resultado-rechazado",
+      punto.resultado === "enterado" && "resultado-enterado",
+    ]}>
+      {resultadoLabel}
+      {punto.unanimidad && punto.resultado === "aprobado" && (
+        <span class="font-normal text-[var(--color-ink-muted)]"> · unanimidad</span>
+      )}
+    </span>
+  </div>
+
+  <p class="text-sm font-serif font-medium leading-snug">{punto.titulo}</p>
+
+  {punto.resumen_ia && (
+    <p class="text-xs text-[var(--color-ink-muted)] mt-1 leading-relaxed">
+      {punto.resumen_ia}
+    </p>
+  )}
+
+  {esRelevante && (
+    <div class="mt-1 flex items-center gap-1">
+      {Array.from({ length: punto.relevancia_social ?? 0 }).map(() => (
+        <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
+      ))}
+      <span class="text-[10px] text-[var(--color-ink-muted)] ml-1">Alta relevancia ciudadana</span>
+    </div>
+  )}
+</li>

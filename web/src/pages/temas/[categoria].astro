@@ -1,0 +1,66 @@
+---
+import Base from '../../layouts/Base.astro';
+import PuntoItem from '../../components/PuntoItem.astro';
+import { supabase, CATEGORIAS } from '../../lib/supabase';
+
+const { categoria } = Astro.params;
+
+if (!categoria || !CATEGORIAS[categoria]) return Astro.redirect("/temas");
+
+const label = CATEGORIAS[categoria];
+
+const { data: puntos } = await supabase
+  .from("puntos")
+  .select(`
+    id, numero, titulo, categoria, tipo, resultado,
+    unanimidad, resumen_ia, relevancia_social, es_urgencia, pleno_id,
+    plenos ( fecha, numero_acta )
+  `)
+  .eq("categoria", categoria)
+  .order("relevancia_social", { ascending: false })
+  .limit(50);
+
+export function getStaticPaths() {
+  return Object.keys(CATEGORIAS).map(cat => ({ params: { categoria: cat } }));
+}
+---
+
+<Base
+  title={`${label} · Plenos de San Sebastián`}
+  description={`Todas las decisiones sobre ${label.toLowerCase()} en los plenos municipales de San Sebastián.`}
+>
+  <div class="max-w-3xl">
+    <div class="section-rule mb-6">
+      <div class="flex items-center gap-3">
+        <span class:list={["badge", `badge-${categoria}`]}>{label}</span>
+        <h1 class="text-xs font-bold uppercase tracking-widest">
+          {puntos?.length ?? 0} decisiones encontradas
+        </h1>
+      </div>
+    </div>
+
+    <p class="text-sm text-[var(--color-ink-muted)] mb-8">
+      Todos los puntos del orden del día relacionados con <strong>{label.toLowerCase()}</strong> en los plenos municipales de San Sebastián, ordenados por relevancia ciudadana.
+    </p>
+
+    {!puntos || puntos.length === 0 ? (
+      <p class="text-[var(--color-ink-muted)]">Aún no hay datos para esta categoría.</p>
+    ) : (
+      <ul>
+        {puntos.map((p: any) => (
+          <li>
+            <div class="text-xs text-[var(--color-ink-muted)] pt-4 pb-1">
+              <a href={`/acta/${p.pleno_id}`} class="hover:underline">
+                Pleno nº {p.plenos?.numero_acta} ·{" "}
+                {new Date(p.plenos?.fecha).toLocaleDateString("es-ES", {
+                  day: "numeric", month: "long", year: "numeric"
+                })}
+              </a>
+            </div>
+            <PuntoItem punto={p} />
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</Base>

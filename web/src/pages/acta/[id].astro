@@ -1,0 +1,182 @@
+---
+import Base from '../../layouts/Base.astro';
+import PuntoItem from '../../components/PuntoItem.astro';
+import { getPleno, getPuntosPleno, supabase } from '../../lib/supabase';
+
+const { id } = Astro.params;
+const pleno = await getPleno(id!);
+
+if (!pleno) return Astro.redirect("/actas");
+
+const puntos = await getPuntosPleno(id!);
+
+// Separar puntos por relevancia y tipo
+const puntosRelevantes = puntos.filter(p => (p.relevancia_social ?? 0) >= 3);
+const puntosAdmin = puntos.filter(p => (p.relevancia_social ?? 0) < 3);
+
+const fecha = new Date(pleno.fecha);
+const fechaFormateada = fecha.toLocaleDateString("es-ES", {
+  weekday: "long", day: "numeric", month: "long", year: "numeric"
+});
+
+// Categorías presentes en este pleno
+const categorias = [...new Set(puntos.map(p => p.categoria).filter(Boolean))];
+
+// Obtener texto completo para el link al PDF original
+const { data: plenoCompleto } = await supabase
+  .from("plenos")
+  .select("url_pdf_original, n_asistentes, n_ausentes, alcalde_nombre")
+  .eq("id", id!)
+  .single();
+---
+
+<Base
+  title={`Pleno ${pleno.numero_acta} · ${fecha.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}`}
+  description={pleno.resumen_ia ?? `Pleno municipal de San Sebastián nº ${pleno.numero_acta}, celebrado el ${fechaFormateada}.`}
+>
+  <div class="grid md:grid-cols-[1fr_280px] gap-10">
+
+    <!-- Contenido principal -->
+    <article>
+      <!-- Cabecera -->
+      <header class="mb-8">
+        <div class="flex flex-wrap gap-2 items-center mb-3">
+          <a href="/actas" class="text-xs text-[var(--color-ink-muted)] hover:underline">← Actas</a>
+          <span class="text-[var(--color-border)]">·</span>
+          <span class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">
+            Pleno nº {pleno.numero_acta}
+          </span>
+          {pleno.tipo_sesion === "extraordinaria" && (
+            <span class="badge" style="background:#fef3c7;color:#92400e;">Extraordinaria</span>
+          )}
+        </div>
+
+        <h1 class="headline-xl mb-3" style="text-transform: capitalize;">
+          {fechaFormateada}
+        </h1>
+
+        {pleno.resumen_ia && (
+          <p class="text-base text-[var(--color-ink-muted)] leading-relaxed border-l-4 border-[var(--color-accent)] pl-4 my-4">
+            {pleno.resumen_ia}
+          </p>
+        )}
+
+        <!-- Estadísticas rápidas -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 p-4 bg-white border border-[var(--color-border)]">
+          <div class="text-center">
+            <p class="text-2xl font-serif font-bold">{pleno.total_puntos}</p>
+            <p class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Puntos</p>
+          </div>
+          <div class="text-center">
+            <p class="text-2xl font-serif font-bold resultado-aprobado">{pleno.aprobados}</p>
+            <p class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Aprobados</p>
+          </div>
+          <div class="text-center">
+            <p class="text-2xl font-serif font-bold resultado-rechazado">{pleno.rechazados}</p>
+            <p class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Rechazados</p>
+          </div>
+          <div class="text-center">
+            <p class="text-2xl font-serif font-bold">{pleno.unanimes}</p>
+            <p class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Unanimidad</p>
+          </div>
+        </div>
+      </header>
+
+      <!-- Puntos con impacto ciudadano -->
+      {puntosRelevantes.length > 0 && (
+        <section class="mb-8">
+          <div class="section-rule mb-4">
+            <span class="text-xs font-bold uppercase tracking-widest">Decisiones con impacto ciudadano</span>
+          </div>
+          <ul class="divide-y divide-[var(--color-border)]">
+            {puntosRelevantes.map(p => <PuntoItem punto={p} />)}
+          </ul>
+        </section>
+      )}
+
+      <!-- Resto de puntos -->
+      {puntosAdmin.length > 0 && (
+        <section>
+          <details class="group">
+            <summary class="section-rule mb-0 cursor-pointer list-none flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-widest">
+                Trámites administrativos ({puntosAdmin.length})
+              </span>
+              <span class="text-xs text-[var(--color-ink-muted)] group-open:hidden">Ver →</span>
+              <span class="text-xs text-[var(--color-ink-muted)] hidden group-open:inline">Cerrar ↑</span>
+            </summary>
+            <ul class="mt-4 divide-y divide-[var(--color-border)]">
+              {puntosAdmin.map(p => <PuntoItem punto={p} />)}
+            </ul>
+          </details>
+        </section>
+      )}
+    </article>
+
+    <!-- Sidebar del acta -->
+    <aside class="space-y-6">
+
+      <!-- Metadatos -->
+      <div class="border border-[var(--color-border)] p-4 text-sm space-y-3">
+        <div class="section-rule">
+          <span class="text-xs font-bold uppercase tracking-widest">Ficha del pleno</span>
+        </div>
+        <dl class="space-y-2 text-sm">
+          <div>
+            <dt class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Municipio</dt>
+            <dd class="font-medium">San Sebastián · Donostia</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Tipo de sesión</dt>
+            <dd class="font-medium" style="text-transform: capitalize;">{pleno.tipo_sesion}</dd>
+          </div>
+          {plenoCompleto?.alcalde_nombre && (
+            <div>
+              <dt class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Preside</dt>
+              <dd class="font-medium">{plenoCompleto.alcalde_nombre}</dd>
+            </div>
+          )}
+          {plenoCompleto?.n_asistentes && (
+            <div>
+              <dt class="text-xs text-[var(--color-ink-muted)] uppercase tracking-wider">Asistencia</dt>
+              <dd class="font-medium">
+                {plenoCompleto.n_asistentes} concejales
+                {plenoCompleto.n_ausentes > 0 && ` (${plenoCompleto.n_ausentes} ausentes)`}
+              </dd>
+            </div>
+          )}
+        </dl>
+        {plenoCompleto?.url_pdf_original && (
+          <a
+            href={plenoCompleto.url_pdf_original}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block text-center text-xs font-semibold border border-[var(--color-ink)] px-3 py-2 hover:bg-[var(--color-ink)] hover:text-white transition-colors mt-2"
+          >
+            Ver PDF original →
+          </a>
+        )}
+      </div>
+
+      <!-- Temas tratados -->
+      {categorias.length > 0 && (
+        <div>
+          <div class="section-rule mb-3">
+            <span class="text-xs font-bold uppercase tracking-widest">Temas tratados</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {categorias.map(cat => (
+              <a
+                href={`/temas/${cat}`}
+                class:list={["badge hover:opacity-80 transition-opacity", `badge-${cat}`]}
+              >
+                {cat.replace("_", " ")}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+    </aside>
+  </div>
+</Base>

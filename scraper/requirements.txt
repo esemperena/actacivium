@@ -1,0 +1,6 @@
+scrapling>=0.4.7
+pdfplumber>=0.11.0
+supabase>=2.4.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
+tenacity>=8.2.3

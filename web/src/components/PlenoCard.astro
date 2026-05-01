@@ -1,0 +1,74 @@
+---
+interface Props {
+  pleno: {
+    id: string;
+    numero_acta: number;
+    fecha: string;
+    tipo_sesion: string;
+    resumen_ia: string | null;
+    municipio: string;
+    total_puntos: number;
+    aprobados: number;
+    rechazados: number;
+    unanimes: number;
+  };
+  featured?: boolean;
+}
+
+const { pleno, featured = false } = Astro.props;
+
+const fecha = new Date(pleno.fecha);
+const fechaFormateada = fecha.toLocaleDateString("es-ES", {
+  day: "numeric", month: "long", year: "numeric"
+});
+const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
+---
+
+<article class:list={[
+  "border-b border-[var(--color-border)] pb-5",
+  featured ? "mb-6" : "py-5"
+]}>
+  <div class="flex items-center gap-2 mb-2">
+    {esExtraordinaria && (
+      <span class="badge" style="background:#fef3c7;color:#92400e;">Extraordinaria</span>
+    )}
+    <span class="text-xs text-[var(--color-ink-muted)] font-sans uppercase tracking-wider">
+      {pleno.municipio} · Pleno nº {pleno.numero_acta}
+    </span>
+  </div>
+
+  <a href={`/acta/${pleno.id}`} class="block group">
+    <time
+      datetime={pleno.fecha}
+      class:list={[
+        "font-serif block mb-1",
+        featured ? "headline-lg" : "headline-md"
+      ]}
+    >
+      {fechaFormateada}
+    </time>
+
+    {pleno.resumen_ia && (
+      <p class:list={[
+        "text-[var(--color-ink-muted)] leading-relaxed",
+        featured ? "text-base mt-2" : "text-sm mt-1"
+      ]}>
+        {pleno.resumen_ia.length > 220
+          ? pleno.resumen_ia.slice(0, 220) + "…"
+          : pleno.resumen_ia}
+      </p>
+    )}
+  </a>
+
+  <!-- Estadísticas del pleno -->
+  <div class="flex gap-5 mt-3 text-xs text-[var(--color-ink-muted)] font-sans">
+    <span>{pleno.total_puntos} puntos</span>
+    <span class="resultado-aprobado">{pleno.aprobados} aprobados</span>
+    {pleno.rechazados > 0 && (
+      <span class="resultado-rechazado">{pleno.rechazados} rechazados</span>
+    )}
+    {pleno.unanimes > 0 && (
+      <span>{pleno.unanimes} por unanimidad</span>
+    )}
+  </div>
+</article>

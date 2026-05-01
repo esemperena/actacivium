@@ -1,0 +1,47 @@
+---
+import Base from '../layouts/Base.astro';
+import PlenoCard from '../components/PlenoCard.astro';
+import { getPlenosFiltrados } from '../lib/supabase';
+
+const page = Number(Astro.url.searchParams.get("page") ?? 1);
+const municipio = Astro.url.searchParams.get("municipio") ?? undefined;
+
+const { data: plenos, count } = await getPlenosFiltrados({ page, municipio });
+const totalPages = Math.ceil(count / 20);
+---
+
+<Base
+  title="Actas de plenos"
+  description="Archivo completo de actas de plenos municipales de San Sebastián. Consulta todas las sesiones y decisiones del Ayuntamiento."
+>
+  <div class="max-w-3xl">
+    <div class="section-rule mb-6">
+      <h1 class="text-xs font-bold uppercase tracking-widest">Actas de plenos</h1>
+    </div>
+
+    {plenos.length === 0 ? (
+      <p class="text-[var(--color-ink-muted)]">No hay actas procesadas aún.</p>
+    ) : (
+      <>
+        <div class="space-y-0">
+          {plenos.map((p) => <PlenoCard pleno={p} />)}
+        </div>
+
+        <!-- Paginación -->
+        {totalPages > 1 && (
+          <nav class="flex justify-between items-center mt-8 pt-4 border-t border-[var(--color-border)]">
+            {page > 1 ? (
+              <a href={`/actas?page=${page - 1}`} class="text-sm font-semibold hover:underline">← Más recientes</a>
+            ) : <span />}
+            <span class="text-xs text-[var(--color-ink-muted)]">
+              Página {page} de {totalPages}
+            </span>
+            {page < totalPages ? (
+              <a href={`/actas?page=${page + 1}`} class="text-sm font-semibold hover:underline">Anteriores →</a>
+            ) : <span />}
+          </nav>
+        )}
+      </>
+    )}
+  </div>
+</Base>

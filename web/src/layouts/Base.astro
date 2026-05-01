@@ -1,0 +1,131 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+}
+
+const {
+  title,
+  description = "Acta Civium analiza los plenos municipales de San Sebastián con una mirada ciudadana, social y medioambiental.",
+  ogImage = "/og-default.png",
+} = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const fullTitle = title === "Acta Civium" ? title : `${title} — Acta Civium`;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="canonical" href={canonicalURL} />
+    <meta name="description" content={description} />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_ES" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- Schema.org -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Acta Civium",
+      "description": description,
+      "url": Astro.site,
+      "inLanguage": "es",
+    })} />
+
+    <title>{fullTitle}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+  </head>
+
+  <body class="min-h-screen flex flex-col">
+    <!-- Franja de cabecera superior -->
+    <div class="border-b border-[var(--color-border)] py-1 px-4 text-xs text-[var(--color-ink-muted)] flex justify-between items-center">
+      <span>San Sebastián · Plenos Municipales</span>
+      <a
+        href="/newsletter"
+        class="font-semibold text-[var(--color-accent)] hover:underline"
+      >
+        Suscríbete a la newsletter →
+      </a>
+    </div>
+
+    <!-- Cabecera principal -->
+    <header class="border-b-4 border-[var(--color-ink)] py-4 px-4 md:px-8">
+      <div class="max-w-7xl mx-auto">
+        <div class="text-center border-b border-[var(--color-border)] pb-4 mb-4">
+          <a href="/" class="inline-block">
+            <span class="headline-xl tracking-tight" style="letter-spacing: -0.02em;">Acta Civium</span>
+          </a>
+          <p class="text-[var(--color-ink-muted)] text-sm mt-1 font-sans">
+            Los plenos municipales, en lenguaje ciudadano
+          </p>
+        </div>
+
+        <!-- Navegación -->
+        <nav class="flex flex-wrap gap-x-6 gap-y-2 justify-center text-sm font-semibold uppercase tracking-widest text-[var(--color-ink)]">
+          <a href="/" class="hover:text-[var(--color-accent)] transition-colors">Inicio</a>
+          <a href="/actas" class="hover:text-[var(--color-accent)] transition-colors">Actas</a>
+          <a href="/temas" class="hover:text-[var(--color-accent)] transition-colors">Por tema</a>
+          <a href="/partidos" class="hover:text-[var(--color-accent)] transition-colors">Partidos</a>
+          <a href="/newsletter" class="hover:text-[var(--color-accent)] transition-colors">Newsletter</a>
+          <a href="/sobre" class="hover:text-[var(--color-accent)] transition-colors">Sobre el proyecto</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 py-8">
+      <slot />
+    </main>
+
+    <footer class="border-t-2 border-[var(--color-ink)] mt-12 py-8 px-4 md:px-8 bg-[var(--color-ink)] text-[var(--color-bg)]">
+      <div class="max-w-7xl mx-auto grid md:grid-cols-3 gap-8 text-sm">
+        <div>
+          <p class="font-serif font-bold text-lg mb-2">Acta Civium</p>
+          <p class="text-gray-400 leading-relaxed">
+            Transparencia municipal desde una perspectiva ciudadana, social y medioambiental.
+          </p>
+        </div>
+        <div>
+          <p class="font-semibold mb-2 uppercase tracking-wider text-xs text-gray-400">Navegación</p>
+          <ul class="space-y-1 text-gray-300">
+            <li><a href="/actas" class="hover:text-white transition-colors">Actas de plenos</a></li>
+            <li><a href="/temas" class="hover:text-white transition-colors">Por tema</a></li>
+            <li><a href="/partidos" class="hover:text-white transition-colors">Por partido</a></li>
+            <li><a href="/sobre" class="hover:text-white transition-colors">Sobre el proyecto</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="font-semibold mb-2 uppercase tracking-wider text-xs text-gray-400">Municipios</p>
+          <ul class="space-y-1 text-gray-300">
+            <li class="font-medium text-white">San Sebastián · Donostia</li>
+            <li class="text-gray-500 italic">Más municipios próximamente</li>
+          </ul>
+          <p class="mt-4 text-gray-500 text-xs">
+            Fuente: <a href="https://www.donostia.eus" class="underline hover:text-white">donostia.eus</a>
+          </p>
+        </div>
+      </div>
+      <div class="max-w-7xl mx-auto mt-8 pt-4 border-t border-gray-700 text-xs text-gray-500 flex flex-col md:flex-row justify-between gap-2">
+        <span>© {new Date().getFullYear()} Acta Civium · Proyecto de código abierto</span>
+        <span>Datos: Ayuntamiento de San Sebastián · Licencia de contenido: CC BY 4.0</span>
+      </div>
+    </footer>
+  </body>
+</html>

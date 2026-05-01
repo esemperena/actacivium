@@ -1,0 +1,8 @@
+.env
+node_modules/
+.astro/
+dist/
+__pycache__/
+*.pyc
+*.pdf
+.DS_Store
