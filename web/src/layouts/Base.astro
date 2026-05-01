@@ -13,7 +13,7 @@ const {
   ogImage = "/og-default.png",
 } = Astro.props;
 
-const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? "https://actacivium.netlify.app");
 const fullTitle = title === "Acta Civium" ? title : `${title} — Acta Civium`;
 ---
 
