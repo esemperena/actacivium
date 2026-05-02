@@ -451,14 +451,16 @@ TEXTO DEL ACTA (primeras {max_pages} páginas):
 {texto}
 """
 
-PROMPT_RESUMEN_PUNTO = """Eres el redactor de Acta Civium. En 1-2 frases, explica este punto del orden del día de un pleno municipal desde una perspectiva ciudadana: qué se decidió, por qué importa, a quién afecta. Sin jerga burocrática.
+SYSTEM_RESUMEN_PUNTO = (
+    "Eres un redactor que resume puntos del orden del día de plenos municipales. "
+    "Escribe SIEMPRE 1-2 frases en español explicando qué se decidió y el impacto ciudadano. "
+    "Nunca hagas preguntas. El texto puede mezclar español y euskera; usa solo el español. "
+    "Si el texto es escaso, infiere del título y el resultado."
+)
 
-IMPORTANTE: Responde ÚNICAMENTE con el resumen. No hagas preguntas ni pidas más información. Si el texto disponible es escaso, infiere el impacto ciudadano a partir del título y el resultado de la votación.
-
-Título: {titulo}
-Resultado: {resultado}
-Texto del acta: {texto}
-"""
+PROMPT_RESUMEN_PUNTO = """Título: {titulo}
+Resultado de la votación: {resultado}
+Texto del acta: {texto}"""
 
 
 def generar_resumen_pleno(texto: str, max_pages: int = PDF_MAX_PAGES_FOR_SUMMARY) -> dict | None:
@@ -488,14 +490,17 @@ def generar_resumen_punto(titulo: str, resultado: str, texto: str) -> str | None
     prompt = PROMPT_RESUMEN_PUNTO.format(
         titulo=titulo, resultado=resultado, texto=texto_recortado
     )
-    return _llamar_claude(prompt)
+    return _llamar_claude(prompt, system_prompt=SYSTEM_RESUMEN_PUNTO)
 
 
-def _llamar_claude(prompt: str) -> str | None:
+def _llamar_claude(prompt: str, system_prompt: str | None = None) -> str | None:
     """Ejecuta Claude CLI de forma no interactiva y devuelve la respuesta."""
+    cmd = [CLAUDE_CMD, "-p", prompt, "--output-format", "text"]
+    if system_prompt:
+        cmd += ["--system-prompt", system_prompt]
     try:
         result = subprocess.run(
-            [CLAUDE_CMD, "-p", prompt, "--output-format", "text"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=120,

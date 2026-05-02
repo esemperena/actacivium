@@ -26,125 +26,191 @@ interface Props {
 const { pleno, featured = false, highlights = [] } = Astro.props;
 
 const fecha = new Date(pleno.fecha + "T12:00:00");
-const fechaLarga = fecha.toLocaleDateString("es-ES", {
-  day: "numeric", month: "long", year: "numeric",
-});
-const diaSemana = fecha.toLocaleDateString("es-ES", { weekday: "long" });
+const fechaLarga = fecha.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+const diaSemana  = fecha.toLocaleDateString("es-ES", { weekday: "long" });
 const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
+
+const CATEGORIAS: Record<string, string> = {
+  urbanismo: "Urbanismo", vivienda: "Vivienda", hacienda: "Hacienda",
+  medio_ambiente: "Medio Ambiente", servicios_sociales: "Serv. Sociales",
+  movilidad: "Movilidad", cultura: "Cultura", gobernanza: "Gobernanza",
+  derechos: "Derechos", seguridad: "Seguridad", educacion: "Educación", otro: "Otro",
+};
 
 const RESULTADO_DOT: Record<string, string> = {
   aprobado:  "var(--color-green)",
   rechazado: "var(--color-red)",
   enterado:  "var(--color-ink-subtle)",
 };
-
-const CATEGORIAS: Record<string, string> = {
-  urbanismo: "Urbanismo", vivienda: "Vivienda", hacienda: "Hacienda",
-  medio_ambiente: "Medio Ambiente", servicios_sociales: "Serv. Sociales",
-  movilidad: "Movilidad", cultura: "Cultura", gobernanza: "Gobernanza",
-  derechos: "Derechos", seguridad: "Seguridad", educacion: "Educación",
-  sanidad: "Sanidad", otro: "Otro",
-};
 ---
 
-<article style={`border-bottom: 1px solid var(--color-border); padding: ${featured ? "28px 0" : "20px 0"};`}>
+<article class:list={["pleno-card", featured && "pleno-card--featured"]}>
 
-  <!-- Etiquetas superiores -->
-  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px;">
-    <span style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-ink-subtle);">
-      Pleno nº {pleno.numero_acta}
-    </span>
+  <!-- Top row -->
+  <div class="card-top">
+    <span class="card-label">Pleno nº {pleno.numero_acta}</span>
     {esExtraordinaria && (
       <span class="badge" style="background: var(--color-amber-bg); color: var(--color-amber);">Extraordinaria</span>
     )}
   </div>
 
-  <!-- Título / fecha -->
-  <a href={`/acta/${pleno.id}`} style="display: block; text-decoration: none;">
-    <time
-      datetime={pleno.fecha}
-      style={`
-        font-family: var(--font-serif);
-        font-weight: 700;
-        font-size: ${featured ? "clamp(1.25rem, 2.5vw, 1.875rem)" : "clamp(1rem, 1.8vw, 1.35rem)"};
-        line-height: 1.2;
-        letter-spacing: -0.02em;
-        text-transform: capitalize;
-        color: var(--color-ink);
-        display: block;
-        margin-bottom: 6px;
-        transition: color 0.15s;
-      `}
-      class="pleno-fecha-link"
-    >
+  <!-- Date title -->
+  <a href={`/acta/${pleno.id}`} class="card-fecha-link">
+    <time datetime={pleno.fecha} class:list={["card-fecha", featured && "card-fecha--featured"]}>
       {diaSemana}, {fechaLarga}
     </time>
   </a>
 
-  <!-- Resumen IA si existe -->
-  {pleno.resumen_ia && (
-    <p style={`
-      color: var(--color-ink-muted);
-      line-height: 1.65;
-      font-size: ${featured ? "0.9375rem" : "0.875rem"};
-      margin-bottom: 10px;
-    `}>
-      {pleno.resumen_ia.length > 220
-        ? pleno.resumen_ia.slice(0, 220) + "…"
-        : pleno.resumen_ia}
+  <!-- Summary or highlights -->
+  {pleno.resumen_ia ? (
+    <p class:list={["card-resumen", featured && "card-resumen--featured"]}>
+      {pleno.resumen_ia.length > 220 ? pleno.resumen_ia.slice(0, 220) + "…" : pleno.resumen_ia}
     </p>
-  )}
-
-  <!-- Highlights: puntos más relevantes del pleno -->
-  {!pleno.resumen_ia && highlights.length > 0 && (
-    <ul style="margin: 8px 0 10px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px;">
+  ) : highlights.length > 0 ? (
+    <ul class="card-highlights">
       {highlights.map((h) => (
-        <li style="display: flex; align-items: baseline; gap: 8px; font-size: 0.8125rem; line-height: 1.4;">
-          <span style={`width: 6px; height: 6px; border-radius: 50%; background: ${RESULTADO_DOT[h.resultado] ?? "var(--color-ink-subtle)"}; flex-shrink: 0; margin-top: 5px;`} />
-          <span style="color: var(--color-ink);">
+        <li class="card-highlight-item">
+          <span class="card-highlight-dot" style={`background: ${RESULTADO_DOT[h.resultado] ?? "var(--color-ink-subtle)"}`} />
+          <span class="card-highlight-text">
             {h.titulo.length > 90 ? h.titulo.slice(0, 90) + "…" : h.titulo}
           </span>
           {h.categoria && h.categoria !== "otro" && (
-            <span class:list={["badge", `badge-${h.categoria}`]} style="flex-shrink: 0;">
+            <span class:list={["badge", `badge-${h.categoria}`]} style="flex-shrink:0">
               {CATEGORIAS[h.categoria] ?? h.categoria}
             </span>
           )}
         </li>
       ))}
     </ul>
-  )}
+  ) : null}
 
-  <!-- Stats -->
-  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 6px; font-size: 0.8125rem; color: var(--color-ink-subtle);">
-    <span style="font-weight: 600; color: var(--color-ink);">
-      {pleno.total_puntos} {pleno.total_puntos === 1 ? "punto" : "puntos"}
-    </span>
-    {pleno.aprobados > 0 && (
-      <span class="resultado-aprobado">{pleno.aprobados} aprobados</span>
-    )}
-    {pleno.rechazados > 0 && (
-      <span class="resultado-rechazado">{pleno.rechazados} rechazados</span>
-    )}
-    {pleno.unanimes > 0 && (
-      <span>{pleno.unanimes} por unanimidad</span>
-    )}
-    {pleno.n_asistentes && (
-      <span>{pleno.n_asistentes} concejales</span>
-    )}
-    <a
-      href={`/acta/${pleno.id}`}
-      style="margin-left: auto; font-size: 0.8125rem; font-weight: 600; color: var(--color-accent); text-decoration: none;"
-    >
-      Ver acta →
-    </a>
+  <!-- Stats row -->
+  <div class="card-stats">
+    <span class="card-stats-total">{pleno.total_puntos} {pleno.total_puntos === 1 ? "punto" : "puntos"}</span>
+    {pleno.aprobados   > 0 && <span class="resultado-aprobado">{pleno.aprobados} aprobados</span>}
+    {pleno.rechazados  > 0 && <span class="resultado-rechazado">{pleno.rechazados} rechazados</span>}
+    {pleno.unanimes    > 0 && <span class="card-stats-meta">{pleno.unanimes} por unanimidad</span>}
+    {pleno.n_asistentes    && <span class="card-stats-meta">{pleno.n_asistentes} concejales</span>}
+    <a href={`/acta/${pleno.id}`} class="card-ver">Ver acta →</a>
   </div>
 </article>
 
 <style>
-  .pleno-fecha-link:hover {
-    color: var(--color-accent) !important;
+  .pleno-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 20px 20px 16px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
   }
-  article:hover .pleno-fecha-link {
+  .pleno-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--color-border-strong);
+    border-radius: 3px 0 0 3px;
+    transition: background 0.2s;
+  }
+  .pleno-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-border-strong);
+    transform: translateY(-1px);
+  }
+  .pleno-card:hover::before { background: var(--color-accent); }
+
+  .pleno-card--featured {
+    border-color: oklch(85% 0.02 158);
+    background: oklch(99.5% 0.004 158);
+  }
+  .pleno-card--featured::before { background: var(--color-accent); }
+
+  .card-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .card-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+
+  .card-fecha-link { text-decoration: none; display: block; margin-bottom: 6px; }
+  .card-fecha {
+    font-family: var(--font-serif);
+    font-size: clamp(1rem, 1.8vw, 1.2rem);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-transform: capitalize;
+    color: var(--color-ink);
+    display: block;
+    transition: color 0.15s;
+  }
+  .card-fecha--featured { font-size: clamp(1.15rem, 2.5vw, 1.5rem); }
+  .card-fecha-link:hover .card-fecha { color: var(--color-accent); }
+
+  .card-resumen {
+    font-size: 0.875rem;
+    color: var(--color-ink-muted);
+    line-height: 1.65;
+    margin-bottom: 10px;
+  }
+  .card-resumen--featured { font-size: 0.9375rem; }
+
+  .card-highlights {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 8px 0 10px;
+  }
+  .card-highlight-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+  .card-highlight-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+    display: inline-block;
+  }
+  .card-highlight-text { color: var(--color-ink); }
+
+  .card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+    font-size: 0.8125rem;
+    color: var(--color-ink-subtle);
+  }
+  .card-stats-total { font-weight: 600; color: var(--color-ink); }
+  .card-stats-meta  { color: var(--color-ink-subtle); }
+  .card-ver {
+    margin-left: auto;
+    font-size: 0.8125rem;
+    font-weight: 600;
     color: var(--color-accent);
+    text-decoration: none;
+    transition: color 0.15s;
   }
+  .card-ver:hover { color: oklch(36% 0.13 158); }
 </style>

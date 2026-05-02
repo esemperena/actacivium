@@ -71,14 +71,7 @@ def main():
         for p in pendientes:
             extracto = _extraer_fragmento(texto_pleno, p["numero"])
 
-            # Si el título parece truncado, intentar extraerlo del cuerpo
             titulo = p["titulo"] or ""
-            if args.fix_titles or _titulo_truncado(titulo):
-                titulo_cuerpo = _titulo_desde_cuerpo(texto_pleno, p["numero"])
-                if titulo_cuerpo and len(titulo_cuerpo) > len(titulo):
-                    titulo = titulo_cuerpo
-                    client.table("puntos").update({"titulo": titulo[:300]}).eq("id", p["id"]).execute()
-                    print(f"    [{p['numero']}] título actualizado: {titulo[:80]}")
 
             resultado = p["resultado"] or "sin_votacion"
             texto_para_resumen = extracto if extracto else titulo
