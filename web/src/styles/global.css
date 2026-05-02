@@ -66,6 +66,10 @@ html {
 .badge-movilidad          { background: #e0f7fa; color: #006064; }
 .badge-derechos           { background: #fce4ec; color: #880e4f; }
 .badge-gobernanza         { background: #f3f3f3; color: #424242; }
+.badge-cultura            { background: #fdf4ff; color: #6b21a8; }
+.badge-educacion          { background: #eff6ff; color: #1e40af; }
+.badge-sanidad            { background: #fff0f0; color: #9b1c1c; }
+.badge-seguridad          { background: #fafafa; color: #374151; }
 .badge-otro               { background: #f3f3f3; color: #424242; }
 
 .resultado-aprobado  { color: #1b5e20; font-weight: 600; }

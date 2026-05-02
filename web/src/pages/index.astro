@@ -1,124 +1,278 @@
 ---
 export const prerender = false;
 import Base from '../layouts/Base.astro';
-import PlenoCard from '../components/PlenoCard.astro';
-import { getPlenos, getPuntosRelevantes, CATEGORIAS } from '../lib/supabase';
+import { getPlenos, getPuntosPleno, supabase, CATEGORIAS } from '../lib/supabase';
 
-const plenos = await getPlenos(12);
-const puntosRelevantes = await getPuntosRelevantes(8);
+// ── Datos para hero y demo ──────────────────────────────────────────────────
 
-const ultimoPleno = plenos[0] ?? null;
-const plenosRecientes = plenos.slice(1, 7);
+let latestPleno: any  = null;
+let demoPuntos: any[] = [];
+let demoMeta:   any   = null;
+let totalActas  = 0;
+let totalPuntos = 0;
+
+try {
+  const plenos = await getPlenos(1);
+  latestPleno  = plenos[0] ?? null;
+
+  const [cntA, cntP] = await Promise.all([
+    supabase.from("plenos").select("*", { count: "exact", head: true }).eq("estado", "procesado"),
+    supabase.from("puntos").select("*", { count: "exact", head: true }),
+  ]);
+  totalActas  = cntA.count ?? 0;
+  totalPuntos = cntP.count ?? 0;
+
+  if (latestPleno) {
+    demoPuntos = await getPuntosPleno(latestPleno.id);
+    const { data } = await supabase
+      .from("plenos")
+      .select("alcalde_nombre, n_asistentes, n_ausentes, hora_inicio, secretaria_nombre")
+      .eq("id", latestPleno.id)
+      .single();
+    demoMeta = data;
+  }
+} catch {}
+
+const TIPO_LABEL: Record<string, string> = {
+  dar_cuenta: "Dar cuenta",
+  aprobacion_definitiva: "Aprobación definitiva",
+  aprobacion_inicial: "Aprobación inicial",
+  declaracion_institucional: "Declaración institucional",
+  mocion: "Moción",
+  otro: "Trámite",
+};
+
+const RESULTADO_LABEL: Record<string, string> = {
+  aprobado: "Aprobado", rechazado: "Rechazado",
+  enterado: "Enterado", retirado: "Retirado",
+  aplazado: "Aplazado", sin_votacion: "Informativo",
+};
+
+const fechaDemo = latestPleno
+  ? new Date(latestPleno.fecha + "T12:00:00").toLocaleDateString("es-ES", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    })
+  : null;
+
+const fechaDemoCorta = latestPleno
+  ? new Date(latestPleno.fecha + "T12:00:00").toLocaleDateString("es-ES", {
+      day: "numeric", month: "short", year: "numeric",
+    })
+  : null;
 ---
 
 <Base
   title="Acta Civium"
-  description="Los plenos municipales de San Sebastián, en lenguaje ciudadano. Transparencia, impacto social y rendición de cuentas."
+  description="Los plenos municipales de San Sebastián, en lenguaje ciudadano. Recibe cada semana un resumen de lo que decide el Ayuntamiento."
 >
-  <div class="grid md:grid-cols-[1fr_320px] gap-8">
 
-    <!-- Columna principal -->
-    <div>
-      {ultimoPleno && (
-        <section class="mb-8">
-          <div class="section-rule mb-5">
-            <span class="text-xs font-bold uppercase tracking-widest">Último pleno</span>
-          </div>
-          <PlenoCard pleno={ultimoPleno} featured />
-        </section>
-      )}
+  <!-- ── HERO ── full-bleed rompiendo el padding del layout ────────────── -->
+  <section class="-mx-4 md:-mx-8 -mt-8 bg-[var(--color-accent)] text-white py-20 px-4 md:px-8">
+    <div class="max-w-2xl mx-auto text-center">
+      <p class="text-xs font-bold uppercase tracking-[0.2em] text-green-300 mb-4">
+        San Sebastián · Plenos Municipales
+      </p>
+      <h1 class="font-serif text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6" style="letter-spacing:-0.02em;">
+        Lo que decide el Ayuntamiento,<br />
+        <em class="font-normal not-italic text-green-300">en lenguaje que se entiende.</em>
+      </h1>
+      <p class="text-green-200 text-lg leading-relaxed mb-10 max-w-lg mx-auto">
+        Cada semana analizamos las actas del pleno de Donostia y te enviamos
+        lo que importa: qué se aprobó, qué se rechazó y qué impacto tiene en la ciudad.
+      </p>
 
-      <div class="section-rule mb-5">
-        <span class="text-xs font-bold uppercase tracking-widest">Plenos anteriores</span>
-      </div>
-
-      <section class="grid md:grid-cols-2 gap-x-8">
-        {plenosRecientes.map((p) => <PlenoCard pleno={p} />)}
-      </section>
-
-      <div class="mt-6 text-center">
-        <a
-          href="/actas"
-          class="inline-block border border-[var(--color-ink)] text-sm font-semibold px-6 py-2 hover:bg-[var(--color-ink)] hover:text-[var(--color-bg)] transition-colors"
+      <!-- Formulario de suscripción -->
+      <form
+        action="/newsletter"
+        method="GET"
+        class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+      >
+        <input
+          type="email"
+          name="email"
+          placeholder="tu@email.com"
+          required
+          class="flex-1 px-4 py-3 text-[var(--color-ink)] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white"
+        />
+        <button
+          type="submit"
+          class="bg-white text-[var(--color-accent)] font-bold text-sm px-6 py-3 hover:bg-green-50 transition-colors whitespace-nowrap cursor-pointer"
         >
-          Ver todos los plenos →
-        </a>
+          Suscribirme gratis →
+        </button>
+      </form>
+
+      <p class="text-green-400 text-xs mt-4">Sin spam. Un correo por semana, sólo cuando hay pleno.</p>
+
+      <!-- Stats -->
+      {totalActas > 0 && (
+        <div class="flex justify-center gap-8 mt-10 pt-8 border-t border-green-800 text-sm text-green-300">
+          <span><strong class="text-white text-lg font-serif">{totalActas}</strong> actas analizadas</span>
+          <span><strong class="text-white text-lg font-serif">{totalPuntos}</strong> puntos del orden del día</span>
+          <span><strong class="text-white text-lg font-serif">1</strong> municipio cubierto</span>
+        </div>
+      )}
+    </div>
+  </section>
+
+  <!-- ── CÓMO FUNCIONA ─────────────────────────────────────────────────── -->
+  <section class="py-16 border-b border-[var(--color-border)]">
+    <div class="max-w-3xl mx-auto">
+      <div class="section-rule mb-10">
+        <span class="text-xs font-bold uppercase tracking-widest">Cómo funciona</span>
+      </div>
+      <div class="grid md:grid-cols-3 gap-8">
+        {[
+          {
+            num: "01",
+            title: "Descargamos el acta",
+            desc: "Monitorizamos el portal del Ayuntamiento de Donostia y descargamos cada acta publicada en PDF.",
+          },
+          {
+            num: "02",
+            title: "Analizamos con IA",
+            desc: "Extraemos los puntos del orden del día, los clasificamos por tema y evaluamos su impacto ciudadano.",
+          },
+          {
+            num: "03",
+            title: "Te lo contamos",
+            desc: "Recibes un resumen semanal con las decisiones que afectan a la ciudad, con contexto y sin tecnicismos.",
+          },
+        ].map(({ num, title, desc }) => (
+          <div>
+            <p class="font-serif text-4xl font-bold text-[var(--color-accent)] mb-3">{num}</p>
+            <h3 class="font-semibold text-base mb-2">{title}</h3>
+            <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">{desc}</p>
+          </div>
+        ))}
       </div>
     </div>
+  </section>
 
-    <!-- Sidebar -->
-    <aside class="border-l border-[var(--color-border)] pl-6 space-y-8">
+  <!-- ── DEMO DE ACTA ──────────────────────────────────────────────────── -->
+  {latestPleno && (
+    <section class="py-16">
+      <div class="max-w-3xl mx-auto">
+        <div class="section-rule mb-8">
+          <span class="text-xs font-bold uppercase tracking-widest">Ejemplo: así se ve una acta analizada</span>
+        </div>
 
-      <!-- Newsletter -->
-      <div class="bg-[var(--color-accent)] text-white p-5">
-        <p class="font-serif font-bold text-lg mb-1">Newsletter semanal</p>
-        <p class="text-sm text-green-200 mb-4 leading-relaxed">
-          Los acuerdos que importan, cada semana en tu bandeja de entrada.
-        </p>
-        <form action="/newsletter" method="GET">
-          <input
-            type="email"
-            name="email"
-            placeholder="tu@email.com"
-            class="w-full px-3 py-2 text-sm text-[var(--color-ink)] mb-2 border-0 focus:ring-2 focus:ring-white outline-none"
-          />
-          <button
-            type="submit"
-            class="w-full bg-white text-[var(--color-accent)] font-bold text-sm py-2 hover:bg-green-50 transition-colors"
-          >
-            Suscribirse
-          </button>
-        </form>
-      </div>
+        <!-- Tarjeta demo -->
+        <div class="border border-[var(--color-ink)] shadow-sm">
 
-      <!-- Decisiones de alto impacto -->
-      {puntosRelevantes.length > 0 && (
-        <div>
-          <div class="section-rule mb-4">
-            <span class="text-xs font-bold uppercase tracking-widest">Decisiones destacadas</span>
+          <!-- Cabecera de la tarjeta -->
+          <div class="bg-[var(--color-ink)] text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-widest text-gray-400 mb-1">
+                {latestPleno.municipio ?? "San Sebastián"} · Pleno nº {latestPleno.numero_acta}
+              </p>
+              <p class="font-serif text-xl font-semibold" style="text-transform: capitalize;">
+                {fechaDemo}
+              </p>
+            </div>
+            <span class="text-xs font-semibold uppercase tracking-wider px-3 py-1 border border-gray-500 text-gray-300">
+              {latestPleno.tipo_sesion}
+            </span>
           </div>
-          <ul class="space-y-4">
-            {puntosRelevantes.map((p) => (
-              <li class="border-b border-[var(--color-border)] pb-4 last:border-0">
-                <span class:list={["badge mb-1", `badge-${p.categoria}`]}>
-                  {CATEGORIAS[p.categoria] ?? p.categoria}
-                </span>
-                <a href={`/acta/${p.pleno_id}`} class="block font-serif text-sm font-medium leading-snug hover:underline mt-1">
-                  {p.titulo}
-                </a>
-                <p class="text-xs text-[var(--color-ink-muted)] mt-1">
-                  {new Date(p.fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
-                  {" · "}
-                  <span class:list={[
-                    p.resultado === "aprobado" && "resultado-aprobado",
-                    p.resultado === "rechazado" && "resultado-rechazado",
-                  ]}>
-                    {p.resultado === "aprobado" ? "Aprobado" : p.resultado === "rechazado" ? "Rechazado" : ""}
-                  </span>
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
-      <!-- Temas -->
-      <div>
-        <div class="section-rule mb-4">
-          <span class="text-xs font-bold uppercase tracking-widest">Por tema</span>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          {Object.entries(CATEGORIAS).filter(([k]) => k !== "otro").map(([slug, label]) => (
+          <!-- Stats del pleno -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 border-b border-[var(--color-border)]">
+            {[
+              { label: "Puntos tratados", value: latestPleno.total_puntos ?? demoPuntos.length },
+              { label: "Aprobados",       value: latestPleno.aprobados ?? 0 },
+              { label: "Rechazados",      value: latestPleno.rechazados ?? 0 },
+              { label: "Concejales",      value: demoMeta?.n_asistentes ?? "—" },
+            ].map(({ label, value }) => (
+              <div class="text-center py-4 px-2 border-r border-[var(--color-border)] last:border-r-0">
+                <p class="font-serif text-3xl font-bold">{value}</p>
+                <p class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mt-1">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <!-- Orden del día -->
+          <div class="px-6 py-4">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-muted)] mb-4">
+              Orden del día
+            </p>
+            <ul class="divide-y divide-[var(--color-border)]">
+              {demoPuntos.map((p: any) => (
+                <li class="py-3 flex items-start gap-3">
+                  <span class="text-xs font-mono text-[var(--color-ink-muted)] w-5 shrink-0 mt-0.5">
+                    {p.numero}.
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium leading-snug">{p.titulo}</p>
+                    <div class="flex flex-wrap gap-2 mt-1.5">
+                      {p.categoria && p.categoria !== "otro" && (
+                        <span class:list={["badge", `badge-${p.categoria}`]}>
+                          {CATEGORIAS[p.categoria] ?? p.categoria}
+                        </span>
+                      )}
+                      <span class="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wide">
+                        {TIPO_LABEL[p.tipo] ?? p.tipo}
+                      </span>
+                    </div>
+                  </div>
+                  <span class="text-xs text-[var(--color-ink-muted)] shrink-0">
+                    {RESULTADO_LABEL[p.resultado] ?? p.resultado}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <!-- CTA dentro de la tarjeta -->
+          <div class="border-t border-[var(--color-border)] px-6 py-4 flex items-center justify-between bg-gray-50">
+            <p class="text-xs text-[var(--color-ink-muted)]">
+              Esta es la vista de una acta. Cada semana recibirás esto en tu correo.
+            </p>
             <a
-              href={`/temas/${slug}`}
-              class:list={["badge hover:opacity-80 transition-opacity cursor-pointer", `badge-${slug}`]}
+              href={`/acta/${latestPleno.id}`}
+              class="text-xs font-bold text-[var(--color-accent)] hover:underline whitespace-nowrap"
             >
-              {label}
+              Ver acta completa →
             </a>
-          ))}
+          </div>
+        </div>
+
+        <!-- Link a todas las actas -->
+        <div class="mt-6 text-center">
+          <a
+            href="/actas"
+            class="inline-block border border-[var(--color-ink)] text-sm font-semibold px-8 py-3 hover:bg-[var(--color-ink)] hover:text-[var(--color-bg)] transition-colors"
+          >
+            Ver todas las actas →
+          </a>
         </div>
       </div>
+    </section>
+  )}
 
-    </aside>
-  </div>
+  <!-- ── SEGUNDO CTA ───────────────────────────────────────────────────── -->
+  <section class="-mx-4 md:-mx-8 bg-[var(--color-accent-light)] py-16 px-4 md:px-8 border-y border-[var(--color-border)]">
+    <div class="max-w-lg mx-auto text-center">
+      <h2 class="font-serif text-2xl font-bold mb-3">¿No quieres perderte nada?</h2>
+      <p class="text-[var(--color-ink-muted)] text-sm mb-6 leading-relaxed">
+        Únete a la newsletter y recibe cada semana un análisis de los acuerdos municipales
+        de Donostia, desde una perspectiva ciudadana y social.
+      </p>
+      <form action="/newsletter" method="GET" class="flex flex-col sm:flex-row gap-3 max-w-sm mx-auto">
+        <input
+          type="email"
+          name="email"
+          placeholder="tu@email.com"
+          required
+          class="flex-1 px-4 py-3 text-sm border border-[var(--color-border)] focus:outline-none focus:border-[var(--color-ink)]"
+        />
+        <button
+          type="submit"
+          class="bg-[var(--color-accent)] text-white font-bold text-sm px-6 py-3 hover:bg-[#0f2218] transition-colors cursor-pointer"
+        >
+          Suscribirme
+        </button>
+      </form>
+    </div>
+  </section>
+
 </Base>

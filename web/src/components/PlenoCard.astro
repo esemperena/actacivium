@@ -11,64 +11,82 @@ interface Props {
     aprobados: number;
     rechazados: number;
     unanimes: number;
+    n_asistentes?: number | null;
   };
   featured?: boolean;
 }
 
 const { pleno, featured = false } = Astro.props;
 
-const fecha = new Date(pleno.fecha);
-const fechaFormateada = fecha.toLocaleDateString("es-ES", {
-  day: "numeric", month: "long", year: "numeric"
+const fecha = new Date(pleno.fecha + "T12:00:00");
+const fechaLarga = fecha.toLocaleDateString("es-ES", {
+  day: "numeric", month: "long", year: "numeric",
 });
+const diaSemana = fecha.toLocaleDateString("es-ES", { weekday: "long" });
 const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
 ---
 
 <article class:list={[
-  "border-b border-[var(--color-border)] pb-5",
-  featured ? "mb-6" : "py-5"
+  "border-b border-[var(--color-border)] group",
+  featured ? "pb-8 mb-2" : "py-5",
 ]}>
-  <div class="flex items-center gap-2 mb-2">
-    {esExtraordinaria && (
-      <span class="badge" style="background:#fef3c7;color:#92400e;">Extraordinaria</span>
-    )}
-    <span class="text-xs text-[var(--color-ink-muted)] font-sans uppercase tracking-wider">
-      {pleno.municipio} · Pleno nº {pleno.numero_acta}
+  <!-- Etiquetas superiores -->
+  <div class="flex flex-wrap items-center gap-2 mb-2">
+    <span class="text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-muted)]">
+      Pleno nº {pleno.numero_acta}
     </span>
+    {esExtraordinaria && (
+      <span class="badge bg-amber-100 text-amber-800">Extraordinaria</span>
+    )}
   </div>
 
-  <a href={`/acta/${pleno.id}`} class="block group">
+  <!-- Título / fecha -->
+  <a href={`/acta/${pleno.id}`} class="block">
     <time
       datetime={pleno.fecha}
       class:list={[
-        "font-serif block mb-1",
-        featured ? "headline-lg" : "headline-md"
+        "font-serif font-bold block mb-1 group-hover:text-[var(--color-accent)] transition-colors",
+        featured ? "headline-lg" : "headline-md",
       ]}
+      style="text-transform: capitalize;"
     >
-      {fechaFormateada}
+      {diaSemana}, {fechaLarga}
     </time>
 
     {pleno.resumen_ia && (
       <p class:list={[
-        "text-[var(--color-ink-muted)] leading-relaxed",
-        featured ? "text-base mt-2" : "text-sm mt-1"
+        "text-[var(--color-ink-muted)] leading-relaxed mt-1",
+        featured ? "text-base" : "text-sm",
       ]}>
-        {pleno.resumen_ia.length > 220
-          ? pleno.resumen_ia.slice(0, 220) + "…"
+        {pleno.resumen_ia.length > 200
+          ? pleno.resumen_ia.slice(0, 200) + "…"
           : pleno.resumen_ia}
       </p>
     )}
   </a>
 
-  <!-- Estadísticas del pleno -->
-  <div class="flex gap-5 mt-3 text-xs text-[var(--color-ink-muted)] font-sans">
-    <span>{pleno.total_puntos} puntos</span>
-    <span class="resultado-aprobado">{pleno.aprobados} aprobados</span>
+  <!-- Stats del pleno -->
+  <div class="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-xs text-[var(--color-ink-muted)] font-sans">
+    <span class="font-medium text-[var(--color-ink)]">
+      {pleno.total_puntos} {pleno.total_puntos === 1 ? "punto" : "puntos"}
+    </span>
+    {pleno.aprobados > 0 && (
+      <span class="resultado-aprobado">{pleno.aprobados} aprobados</span>
+    )}
     {pleno.rechazados > 0 && (
       <span class="resultado-rechazado">{pleno.rechazados} rechazados</span>
     )}
     {pleno.unanimes > 0 && (
       <span>{pleno.unanimes} por unanimidad</span>
     )}
+    {pleno.n_asistentes && (
+      <span>{pleno.n_asistentes} concejales</span>
+    )}
+    <a
+      href={`/acta/${pleno.id}`}
+      class="ml-auto text-[var(--color-accent)] font-semibold hover:underline"
+    >
+      Ver acta →
+    </a>
   </div>
 </article>

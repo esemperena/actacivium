@@ -253,6 +253,8 @@ order by pa.siglas, pu.categoria;
 -- Vista: puntos de alto impacto social
 create or replace view v_puntos_relevantes as
 select
+  pu.id,
+  pu.pleno_id,
   pu.titulo,
   pu.categoria,
   pu.tipo,
