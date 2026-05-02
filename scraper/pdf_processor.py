@@ -133,31 +133,22 @@ def extraer_puntos_sumario(texto: str) -> list[dict]:
         # Título: texto castellano de esta línea (tras el número), sin el número de página final
         titulo_base = re.sub(r"\s+\d{1,3}\s*$", "", m.group(2)).strip()
 
-        # Si el título termina con preposición/artículo, buscar continuación en líneas siguientes
-        _dangling = re.compile(r"\b(el|la|los|las|de|del|por|en|con|a|al|un|una)\s*$", re.I)
-        _new_entry = re.compile(r"\b\d{1,2}\s+[A-ZÁÉÍÓÚÑÜ]")  # nueva entrada del sumario
-        if _dangling.search(titulo_base):
-            for j in range(i + 1, min(i + 6, len(lineas))):
-                cont = lineas[j].strip()
-                if not cont:
-                    continue
-                # Parar si parece una nueva entrada del sumario
-                if _new_entry.search(cont):
-                    break
-                # Extraer sólo la parte castellana:
-                # 1) lo que va tras "basque_word. "
-                # 2) o lo que empieza por "Grupo " u otro marcador español conocido
-                parte_es = re.split(r"[a-záéíóúüñ]+\.\s+", cont, maxsplit=1)
-                segmento = parte_es[-1] if len(parte_es) > 1 else ""
-                if not segmento:
-                    m_grupo = re.search(r"\b(Grupo\s+\S+|sesión|polígono|movilidad|interoperabilidad|relativa|parcela|descuento|necesidades|Ayuntamiento|celebrada)", cont)
-                    if m_grupo:
-                        segmento = cont[m_grupo.start():]
-                # Validar que el segmento tiene contenido en castellano
-                if segmento and re.search(r"[áéíóúñÁÉÍÓÚÑ]|Grupo|relativa|parcela|relación|movilidad|interoperabilidad|descuento|necesidades|Ayuntamiento|sesión|celebrada|polígono", segmento):
-                    titulo_base = (titulo_base + " " + segmento.strip()).strip()
-                    if not _dangling.search(titulo_base):
-                        break
+        # Extender siempre: los títulos del sumario terminan en punto; parar en nueva entrada
+        _complete_end = re.compile(r'[."\)»]$')
+        _new_entry = re.compile(r"\b\d{1,2}\s+[A-ZÁÉÍÓÚÑÜ]")
+        _page_end = re.compile(r"\s\d{1,3}$")  # línea que termina con nº de página = nueva entrada
+        for j in range(i + 1, min(i + 8, len(lineas))):
+            if _complete_end.search(titulo_base):
+                break
+            cont = lineas[j].strip()
+            if not cont:
+                continue
+            if _new_entry.search(cont) or _page_end.search(cont):
+                break
+            segmento = _segmento_espanol_sumario(cont)
+            if segmento:
+                segmento = re.sub(r"\s+\d{1,3}\s*$", "", segmento).strip()
+                titulo_base = (titulo_base + " " + segmento).strip()
 
         vistos.add(num)
         puntos.append({
@@ -167,6 +158,52 @@ def extraer_puntos_sumario(texto: str) -> list[dict]:
         })
 
     return sorted(puntos, key=lambda p: p["numero"])
+
+
+def _segmento_espanol_sumario(linea: str) -> str:
+    """Extrae la parte castellana de una línea bilingüe del sumario."""
+    # 1. Split en "palabra_vasca. " (fin de frase vasca con punto)
+    partes = re.split(r"[a-záéíóúüñ]{3,}\.\s+", linea, maxsplit=1)
+    if len(partes) > 1 and len(partes[1].strip()) >= 3:
+        return partes[1].strip()
+
+    # 2. Anclar en patrones típicamente castellanos: prep. compuestas, acento, mayúscula acentuada
+    m = re.search(
+        r"\b(?:del\s|de\s+la\s|de\s+los\s|de\s+las\s|para\s+el\b|para\s+la\b|"
+        r"al\s+amparo\b|mediante\s|puntual\b|Urbana\b|Ciudad\b|"
+        r"[A-ZÁÉÍÓÚÑÜ]\w*[áéíóúñ]\w*)",
+        linea,
+    )
+    if m:
+        start = m.start()
+        # Incluir la palabra anterior si no tiene sufijo vasco típico
+        pre = linea[:start].rstrip()
+        last_word = re.search(r"\S+$", pre)
+        if last_word:
+            lw = last_word.group()
+            if not re.search(r"(eko|ean|ko|ren|aren|tzea|tze|rik|ak|ok)$", lw, re.I):
+                start = last_word.start()
+        return linea[start:].strip()
+
+    # 3. Sustantivos/adjetivos castellanos conocidos en actas municipales
+    m = re.search(
+        r"\b(?:Grupo\s+\S+|Reglamento|Municipal|Especial|Ordenanza|"
+        r"Modificaci[oó]n|[áA]mbito|[aA]rt[ií]culo|sesión|polígono|movilidad|"
+        r"Inmuebles|Bienes|Impuesto|Abastecimiento|Saneamiento|Renta|"
+        r"Veh[ií]culos|Tráfico|interoperabilidad|relativa|parcela|"
+        r"descuento|necesidades|Ayuntamiento|celebrada|Loiola\b|Urgente)",
+        linea,
+    )
+    if m:
+        return linea[m.start():].strip()
+
+    # 4. Línea corta sin sufijos vascos = texto castellano puro (columna derecha sin texto vasco)
+    if (len(linea) >= 5
+            and not re.match(r"^\d{1,3}\.?$", linea)
+            and not re.search(r"(eko|ean|ko|ren|aren|tzea|tze|rik|ak|ok)\b", linea, re.I)):
+        return linea
+
+    return ""
 
 
 def _limpiar_titulo(titulo: str) -> str:
@@ -416,9 +453,11 @@ TEXTO DEL ACTA (primeras {max_pages} páginas):
 
 PROMPT_RESUMEN_PUNTO = """Eres el redactor de Acta Civium. En 1-2 frases, explica este punto del orden del día de un pleno municipal desde una perspectiva ciudadana: qué se decidió, por qué importa, a quién afecta. Sin jerga burocrática.
 
+IMPORTANTE: Responde ÚNICAMENTE con el resumen. No hagas preguntas ni pidas más información. Si el texto disponible es escaso, infiere el impacto ciudadano a partir del título y el resultado de la votación.
+
 Título: {titulo}
 Resultado: {resultado}
-Texto: {texto}
+Texto del acta: {texto}
 """
 
 
