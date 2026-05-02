@@ -11,21 +11,31 @@ create extension if not exists "pg_trgm";  -- búsqueda full-text difusa
 -- MUNICIPIOS
 -- ============================================================
 create table municipios (
-  id            uuid primary key default uuid_generate_v4(),
-  nombre        text not null,
-  nombre_alt    text,                          -- "Donostia" para San Sebastián
-  provincia     text not null,
-  comunidad     text not null,
-  web_oficial   text,
-  url_actas     text,                          -- URL base que monitoriza el scraper
-  activo        boolean not null default true,
-  created_at    timestamptz not null default now()
+  id               uuid primary key default uuid_generate_v4(),
+  nombre           text not null,
+  nombre_alt       text,                        -- "Donostia" para San Sebastián
+  slug             text unique,                 -- URL slug, e.g. "san-sebastian"
+  provincia        text not null,
+  comunidad        text not null,
+  poblacion        integer,
+  n_concejales     integer,
+  alcalde          text,                        -- nombre del alcalde/alcaldesa actual
+  partido_gobierno text,                        -- siglas del partido gobernante
+  color_gobierno   text default '#1a3a2a',      -- color hex del partido
+  web_oficial      text,
+  url_actas        text,                        -- URL base que monitoriza el scraper
+  activo           boolean not null default true,
+  created_at       timestamptz not null default now()
 );
 
 -- Datos iniciales
-insert into municipios (nombre, nombre_alt, provincia, comunidad, web_oficial, url_actas)
+insert into municipios (nombre, nombre_alt, slug, provincia, comunidad, poblacion,
+                        n_concejales, alcalde, partido_gobierno, color_gobierno,
+                        web_oficial, url_actas)
 values (
-  'San Sebastián', 'Donostia', 'Gipuzkoa', 'País Vasco',
+  'San Sebastián', 'Donostia', 'san-sebastian',
+  'Gipuzkoa', 'País Vasco', 188102, 27,
+  'Juan Karlos Izagirre Hortelano', 'EH Bildu', '#5B2D8E',
   'https://www.donostia.eus',
   'https://www.donostia.eus/secretaria/AsuntosPleno.nsf/fwHome?ReadForm&idioma=cas&id=C511345'
 );

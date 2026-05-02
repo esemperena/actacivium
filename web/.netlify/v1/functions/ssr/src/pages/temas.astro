@@ -1,0 +1,25 @@
+---
+import Base from '../layouts/Base.astro';
+import { CATEGORIAS } from '../lib/supabase';
+---
+
+<Base
+  title="Temas · Acta Civium"
+  description="Explora las decisiones del Ayuntamiento de San Sebastián por tema: vivienda, urbanismo, medio ambiente, servicios sociales y más."
+>
+  <div class="max-w-3xl">
+    <div class="section-rule mb-6">
+      <h1 class="text-xs font-bold uppercase tracking-widest">Explorar por tema</h1>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-3">
+      {Object.entries(CATEGORIAS).filter(([k]) => k !== "otro").map(([slug, label]) => (
+        <a
+          href={`/temas/${slug}`}
+          class="flex items-center gap-3 border border-[var(--color-border)] p-4 hover:border-[var(--color-ink)] transition-colors"
+        >
+          <span class:list={["badge", `badge-${slug}`]}>{label}</span>
+        </a>
+      ))}
+    </div>
+  </div>
+</Base>
