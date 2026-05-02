@@ -15,6 +15,8 @@ const {
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? "https://actacivium.netlify.app");
 const fullTitle = title === "Acta Civium" ? title : `${title} — Acta Civium`;
+
+const currentPath = Astro.url.pathname;
 ---
 
 <!doctype html>
@@ -55,77 +57,135 @@ const fullTitle = title === "Acta Civium" ? title : `${title} — Acta Civium`;
   </head>
 
   <body class="min-h-screen flex flex-col">
-    <!-- Franja de cabecera superior -->
-    <div class="border-b border-[var(--color-border)] py-1 px-4 text-xs text-[var(--color-ink-muted)] flex justify-between items-center">
-      <span>San Sebastián · Plenos Municipales</span>
+
+    <!-- ── Franja utilitaria superior ────────────────────────────────────── -->
+    <div style="border-bottom: 1px solid var(--color-border); padding: 5px 32px; display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 0.6875rem; color: var(--color-ink-subtle); letter-spacing: 0.05em;">
+        San Sebastián · Plenos Municipales
+      </span>
       <a
         href="/newsletter"
-        class="font-semibold text-[var(--color-accent)] hover:underline"
+        style="font-size: 0.6875rem; font-weight: 600; color: var(--color-accent-mid);"
       >
         Suscríbete a la newsletter →
       </a>
     </div>
 
-    <!-- Cabecera principal -->
-    <header class="border-b-4 border-[var(--color-ink)] py-4 px-4 md:px-8">
-      <div class="max-w-7xl mx-auto">
-        <div class="text-center border-b border-[var(--color-border)] pb-4 mb-4">
-          <a href="/" class="inline-block">
-            <span class="headline-xl tracking-tight" style="letter-spacing: -0.02em;">Acta Civium</span>
-          </a>
-          <p class="text-[var(--color-ink-muted)] text-sm mt-1 font-sans">
-            Los plenos municipales, en lenguaje ciudadano
-          </p>
-        </div>
+    <!-- ── Cabecera principal ─────────────────────────────────────────────── -->
+    <header style="background: var(--color-bg-card); border-bottom: 1px solid var(--color-border); position: sticky; top: 0; z-index: 100;">
+      <div style="max-width: 1200px; margin: 0 auto; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between;">
+
+        <!-- Logo + wordmark -->
+        <a href="/" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--color-ink);">
+          <svg width="26" height="26" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+            <path fill="var(--color-accent)" d="M50.4 78.5a75.1 75.1 0 0 0-28.5 6.9l24.2-65.7c.7-2 1.9-3.2 3.4-3.2h29c1.5 0 2.7 1.2 3.4 3.2l24.2 65.7s-11.6-7-28.5-7L67 45.5c-.4-1.7-1.6-2.8-2.9-2.8-1.3 0-2.5 1.1-2.9 2.7L50.4 78.5Zm-1.1 28.2Zm-4.2-20.2c-2 6.6-.6 15.8 4.2 20.2a17.5 17.5 0 0 1 .2-.7 5.5 5.5 0 0 1 5.7-4.5c2.8.1 4.3 1.5 4.7 4.7.2 1.1.2 2.3.2 3.5v.4c0 2.7.7 5.2 2.2 7.4a13 13 0 0 0 5.7 4.9v-.3l-.2-.3c-1.8-5.6-.5-9.5 4.4-12.8l1.5-1a73 73 0 0 0 3.2-2.2 16 16 0 0 0 6.8-11.4c.3-2 .1-4-.6-6l-.8.6-1.6 1a37 37 0 0 1-22.4 2.7c-5-.7-9.7-2-13.2-6.2Z"/>
+          </svg>
+          <span style="font-family: var(--font-serif); font-weight: 700; font-size: 1.25rem; letter-spacing: -0.025em;">
+            Acta Civium
+          </span>
+        </a>
 
         <!-- Navegación -->
-        <nav class="flex flex-wrap gap-x-6 gap-y-2 justify-center text-sm font-semibold uppercase tracking-widest text-[var(--color-ink)]">
-          <a href="/" class="hover:text-[var(--color-accent)] transition-colors">Inicio</a>
-          <a href="/actas" class="hover:text-[var(--color-accent)] transition-colors">Actas</a>
-          <a href="/temas" class="hover:text-[var(--color-accent)] transition-colors">Por tema</a>
-          <a href="/partidos" class="hover:text-[var(--color-accent)] transition-colors">Partidos</a>
-          <a href="/newsletter" class="hover:text-[var(--color-accent)] transition-colors">Newsletter</a>
-          <a href="/sobre" class="hover:text-[var(--color-accent)] transition-colors">Sobre el proyecto</a>
+        <nav style="display: flex; gap: 4px;">
+          {[
+            { href: "/",          label: "Inicio"      },
+            { href: "/actas",     label: "Actas"       },
+            { href: "/temas",     label: "Por tema"    },
+            { href: "/newsletter",label: "Newsletter"  },
+            { href: "/sobre",     label: "Sobre el proyecto" },
+          ].map(({ href, label }) => {
+            const active = currentPath === href || (href !== "/" && currentPath.startsWith(href));
+            return (
+              <a
+                href={href}
+                style={`
+                  padding: 6px 14px;
+                  border-radius: var(--radius);
+                  font-size: 0.875rem;
+                  font-weight: ${active ? "600" : "400"};
+                  text-decoration: none;
+                  background: ${active ? "var(--color-accent-light)" : "transparent"};
+                  color: ${active ? "var(--color-accent)" : "var(--color-ink-muted)"};
+                  transition: background 0.15s, color 0.15s;
+                `}
+              >
+                {label}
+              </a>
+            );
+          })}
         </nav>
       </div>
     </header>
 
-    <main class="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 py-8">
+    <main class="flex-1 max-w-[1200px] mx-auto w-full px-8 py-8">
       <slot />
     </main>
 
-    <footer class="border-t-2 border-[var(--color-ink)] mt-12 py-8 px-4 md:px-8 bg-[var(--color-ink)] text-[var(--color-bg)]">
-      <div class="max-w-7xl mx-auto grid md:grid-cols-3 gap-8 text-sm">
-        <div>
-          <p class="font-serif font-bold text-lg mb-2">Acta Civium</p>
-          <p class="text-gray-400 leading-relaxed">
-            Transparencia municipal desde una perspectiva ciudadana, social y medioambiental.
-          </p>
+    <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+    <footer style="background: var(--color-ink); color: oklch(72% 0.01 255); padding: 48px 32px 32px; margin-top: auto;">
+      <div style="max-width: 1200px; margin: 0 auto;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 40px; margin-bottom: 40px;">
+
+          <!-- Brand -->
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+              <svg width="22" height="22" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path fill="white" d="M50.4 78.5a75.1 75.1 0 0 0-28.5 6.9l24.2-65.7c.7-2 1.9-3.2 3.4-3.2h29c1.5 0 2.7 1.2 3.4 3.2l24.2 65.7s-11.6-7-28.5-7L67 45.5c-.4-1.7-1.6-2.8-2.9-2.8-1.3 0-2.5 1.1-2.9 2.7L50.4 78.5Zm-1.1 28.2Zm-4.2-20.2c-2 6.6-.6 15.8 4.2 20.2a17.5 17.5 0 0 1 .2-.7 5.5 5.5 0 0 1 5.7-4.5c2.8.1 4.3 1.5 4.7 4.7.2 1.1.2 2.3.2 3.5v.4c0 2.7.7 5.2 2.2 7.4a13 13 0 0 0 5.7 4.9v-.3l-.2-.3c-1.8-5.6-.5-9.5 4.4-12.8l1.5-1a73 73 0 0 0 3.2-2.2 16 16 0 0 0 6.8-11.4c.3-2 .1-4-.6-6l-.8.6-1.6 1a37 37 0 0 1-22.4 2.7c-5-.7-9.7-2-13.2-6.2Z"/>
+              </svg>
+              <span style="font-family: var(--font-serif); font-weight: 700; font-size: 1.1rem; color: white; letter-spacing: -0.02em;">
+                Acta Civium
+              </span>
+            </div>
+            <p style="font-size: 0.875rem; line-height: 1.65; color: oklch(60% 0.01 255); max-width: 320px;">
+              Transparencia municipal desde una perspectiva ciudadana, social y medioambiental. Código abierto.
+            </p>
+          </div>
+
+          <!-- Navegación -->
+          <div>
+            <p style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: oklch(50% 0.008 255); margin-bottom: 12px;">
+              Navegación
+            </p>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 6px;">
+              {[
+                ["/actas", "Actas de plenos"],
+                ["/temas", "Por tema"],
+                ["/newsletter", "Newsletter"],
+                ["/sobre", "Sobre el proyecto"],
+              ].map(([href, label]) => (
+                <li>
+                  <a href={href} style="font-size: 0.875rem; color: oklch(65% 0.01 255); text-decoration: none; transition: color 0.15s;"
+                     onmouseover="this.style.color='white'" onmouseout="this.style.color='oklch(65% 0.01 255)'">
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <!-- Municipios -->
+          <div>
+            <p style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: oklch(50% 0.008 255); margin-bottom: 12px;">
+              Municipios
+            </p>
+            <p style="font-size: 0.875rem; color: white; margin-bottom: 4px;">San Sebastián · Donostia</p>
+            <p style="font-size: 0.8125rem; color: oklch(45% 0.008 255); font-style: italic;">Más municipios próximamente</p>
+            <p style="margin-top: 16px; font-size: 0.75rem; color: oklch(40% 0.008 255);">
+              Fuente: <a href="https://www.donostia.eus" target="_blank" rel="noopener" style="text-decoration: underline; color: inherit;">donostia.eus</a>
+            </p>
+          </div>
         </div>
-        <div>
-          <p class="font-semibold mb-2 uppercase tracking-wider text-xs text-gray-400">Navegación</p>
-          <ul class="space-y-1 text-gray-300">
-            <li><a href="/actas" class="hover:text-white transition-colors">Actas de plenos</a></li>
-            <li><a href="/temas" class="hover:text-white transition-colors">Por tema</a></li>
-            <li><a href="/partidos" class="hover:text-white transition-colors">Por partido</a></li>
-            <li><a href="/sobre" class="hover:text-white transition-colors">Sobre el proyecto</a></li>
-          </ul>
+
+        <div style="padding-top: 20px; border-top: 1px solid oklch(28% 0.01 255); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span style="font-size: 0.75rem; color: oklch(45% 0.008 255);">
+            © {new Date().getFullYear()} Acta Civium · Proyecto de código abierto · MIT License
+          </span>
+          <span style="font-size: 0.75rem; color: oklch(45% 0.008 255);">
+            Datos: Ayuntamiento de San Sebastián · CC BY 4.0
+          </span>
         </div>
-        <div>
-          <p class="font-semibold mb-2 uppercase tracking-wider text-xs text-gray-400">Municipios</p>
-          <ul class="space-y-1 text-gray-300">
-            <li class="font-medium text-white">San Sebastián · Donostia</li>
-            <li class="text-gray-500 italic">Más municipios próximamente</li>
-          </ul>
-          <p class="mt-4 text-gray-500 text-xs">
-            Fuente: <a href="https://www.donostia.eus" class="underline hover:text-white">donostia.eus</a>
-          </p>
-        </div>
-      </div>
-      <div class="max-w-7xl mx-auto mt-8 pt-4 border-t border-gray-700 text-xs text-gray-500 flex flex-col md:flex-row justify-between gap-2">
-        <span>© {new Date().getFullYear()} Acta Civium · Proyecto de código abierto</span>
-        <span>Datos: Ayuntamiento de San Sebastián · Licencia de contenido: CC BY 4.0</span>
       </div>
     </footer>
+
   </body>
 </html>

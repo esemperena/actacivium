@@ -26,38 +26,46 @@ const diaSemana = fecha.toLocaleDateString("es-ES", { weekday: "long" });
 const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
 ---
 
-<article class:list={[
-  "border-b border-[var(--color-border)] group",
-  featured ? "pb-8 mb-2" : "py-5",
-]}>
+<article style={`border-bottom: 1px solid var(--color-border); padding: ${featured ? "28px 0" : "20px 0"};`}>
+
   <!-- Etiquetas superiores -->
-  <div class="flex flex-wrap items-center gap-2 mb-2">
-    <span class="text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-muted)]">
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px;">
+    <span style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-ink-subtle);">
       Pleno nº {pleno.numero_acta}
     </span>
     {esExtraordinaria && (
-      <span class="badge bg-amber-100 text-amber-800">Extraordinaria</span>
+      <span class="badge" style="background: var(--color-amber-bg); color: var(--color-amber);">Extraordinaria</span>
     )}
   </div>
 
   <!-- Título / fecha -->
-  <a href={`/acta/${pleno.id}`} class="block">
+  <a href={`/acta/${pleno.id}`} style="display: block; text-decoration: none;">
     <time
       datetime={pleno.fecha}
-      class:list={[
-        "font-serif font-bold block mb-1 group-hover:text-[var(--color-accent)] transition-colors",
-        featured ? "headline-lg" : "headline-md",
-      ]}
-      style="text-transform: capitalize;"
+      style={`
+        font-family: var(--font-serif);
+        font-weight: 700;
+        font-size: ${featured ? "clamp(1.25rem, 2.5vw, 1.875rem)" : "clamp(1rem, 1.8vw, 1.35rem)"};
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        text-transform: capitalize;
+        color: var(--color-ink);
+        display: block;
+        margin-bottom: 6px;
+        transition: color 0.15s;
+      `}
+      class="pleno-fecha-link"
     >
       {diaSemana}, {fechaLarga}
     </time>
 
     {pleno.resumen_ia && (
-      <p class:list={[
-        "text-[var(--color-ink-muted)] leading-relaxed mt-1",
-        featured ? "text-base" : "text-sm",
-      ]}>
+      <p style={`
+        color: var(--color-ink-muted);
+        line-height: 1.65;
+        font-size: ${featured ? "0.9375rem" : "0.875rem"};
+        margin-top: 4px;
+      `}>
         {pleno.resumen_ia.length > 200
           ? pleno.resumen_ia.slice(0, 200) + "…"
           : pleno.resumen_ia}
@@ -65,9 +73,9 @@ const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
     )}
   </a>
 
-  <!-- Stats del pleno -->
-  <div class="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-xs text-[var(--color-ink-muted)] font-sans">
-    <span class="font-medium text-[var(--color-ink)]">
+  <!-- Stats -->
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 10px; font-size: 0.8125rem; color: var(--color-ink-subtle);">
+    <span style="font-weight: 600; color: var(--color-ink);">
       {pleno.total_puntos} {pleno.total_puntos === 1 ? "punto" : "puntos"}
     </span>
     {pleno.aprobados > 0 && (
@@ -84,9 +92,18 @@ const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
     )}
     <a
       href={`/acta/${pleno.id}`}
-      class="ml-auto text-[var(--color-accent)] font-semibold hover:underline"
+      style="margin-left: auto; font-size: 0.8125rem; font-weight: 600; color: var(--color-accent); text-decoration: none;"
     >
       Ver acta →
     </a>
   </div>
 </article>
+
+<style>
+  .pleno-fecha-link:hover {
+    color: var(--color-accent) !important;
+  }
+  article:hover .pleno-fecha-link {
+    color: var(--color-accent);
+  }
+</style>

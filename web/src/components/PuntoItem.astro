@@ -23,58 +23,103 @@ const CATEGORIAS: Record<string, string> = {
   derechos: "Derechos", seguridad: "Seguridad", educacion: "Educación", otro: "Otro",
 };
 
+const TIPO_LABEL: Record<string, string> = {
+  dar_cuenta: "Dar cuenta", aprobacion_definitiva: "Aprobación definitiva",
+  aprobacion_inicial: "Aprobación inicial", declaracion_institucional: "Declaración institucional",
+  mocion: "Moción", ruego: "Ruego", pregunta_oral: "Pregunta oral",
+  interpelacion: "Interpelación", otro: "Trámite", proposicion_normativa: "Prop. normativa",
+};
+
 const RESULTADO_LABEL: Record<string, string> = {
   aprobado: "Aprobado", rechazado: "Rechazado",
   enterado: "Enterado", retirado: "Retirado", sin_votacion: "—",
 };
 
 const categoriaLabel = CATEGORIAS[punto.categoria] ?? punto.categoria;
-const resultadoLabel = RESULTADO_LABEL[punto.resultado] ?? punto.resultado;
-const esRelevante = (punto.relevancia_social ?? 0) >= 4;
+const resultadoLabel  = RESULTADO_LABEL[punto.resultado] ?? punto.resultado;
+const tipoLabel       = TIPO_LABEL[punto.tipo] ?? punto.tipo;
+const esRelevante     = (punto.relevancia_social ?? 0) >= 4;
+
+const borderStyle = esRelevante
+  ? "3px solid var(--color-accent)"
+  : punto.es_urgencia
+  ? "3px solid var(--color-amber)"
+  : "1px solid var(--color-border)";
+
+const resultadoStyle = punto.resultado === "aprobado"
+  ? "color: var(--color-green); font-weight: 600;"
+  : punto.resultado === "rechazado"
+  ? "color: var(--color-red); font-weight: 600;"
+  : "color: var(--color-ink-subtle);";
 ---
 
-<li class:list={[
-  "py-4 border-b border-[var(--color-border)] last:border-0",
-  esRelevante && "border-l-2 border-l-[var(--color-accent)] pl-3 ml-[-0.75rem]"
-]}>
-  <div class="flex flex-wrap items-start gap-x-3 gap-y-1 mb-1">
-    <span class="text-xs text-[var(--color-ink-muted)] font-mono">{punto.numero}.</span>
+<li style={`
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-left: ${borderStyle};
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  transition: box-shadow 0.15s;
+  list-style: none;
+`}
+  class="punto-item"
+>
+  <div style="display: flex; gap: 12px; align-items: flex-start;">
 
-    <span class:list={["badge", `badge-${punto.categoria}`]}>
-      {categoriaLabel}
+    <!-- Número -->
+    <span style="font-family: monospace; font-size: 0.75rem; font-weight: 600; color: var(--color-ink-subtle); min-width: 22px; padding-top: 1px;">
+      {punto.numero}.
     </span>
 
-    {punto.es_urgencia && (
-      <span class="badge" style="background:#fef2f2;color:#991b1b;">Urgencia</span>
-    )}
+    <!-- Contenido -->
+    <div style="flex: 1; min-width: 0;">
+      <p style="font-family: var(--font-serif); font-weight: 600; font-size: 0.9375rem; line-height: 1.4; margin-bottom: 8px;">
+        {punto.titulo}
+      </p>
 
-    <span class:list={[
-      "text-xs font-semibold ml-auto",
-      punto.resultado === "aprobado" && "resultado-aprobado",
-      punto.resultado === "rechazado" && "resultado-rechazado",
-      punto.resultado === "enterado" && "resultado-enterado",
-    ]}>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+        {punto.categoria && (
+          <span class:list={["badge", `badge-${punto.categoria}`]}>
+            {categoriaLabel}
+          </span>
+        )}
+        <span style="font-size: 0.6875rem; color: var(--color-ink-subtle); border: 1px solid var(--color-border); border-radius: 3px; padding: 1px 6px; letter-spacing: 0.04em;">
+          {tipoLabel}
+        </span>
+        {punto.es_urgencia && (
+          <span class="badge" style="background: var(--color-amber-bg); color: var(--color-amber);">Urgencia</span>
+        )}
+        {esRelevante && (
+          <span style="display: flex; align-items: center; gap: 3px;">
+            {Array.from({ length: punto.relevancia_social ?? 0 }).map(() => (
+              <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--color-accent); display: inline-block;" />
+            ))}
+            <span style="font-size: 0.625rem; color: var(--color-accent); letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600; margin-left: 2px;">
+              Alta relevancia
+            </span>
+          </span>
+        )}
+      </div>
+
+      {punto.resumen_ia && (
+        <p style="font-size: 0.8125rem; color: var(--color-ink-muted); margin-top: 8px; line-height: 1.6;">
+          {punto.resumen_ia}
+        </p>
+      )}
+    </div>
+
+    <!-- Resultado -->
+    <span style={`font-size: 0.8125rem; white-space: nowrap; padding-top: 2px; ${resultadoStyle}`}>
       {resultadoLabel}
       {punto.unanimidad && punto.resultado === "aprobado" && (
-        <span class="font-normal text-[var(--color-ink-muted)]"> · unanimidad</span>
+        <span style="font-weight: 400; color: var(--color-ink-subtle); font-size: 0.75rem;"> · unanimidad</span>
       )}
     </span>
   </div>
-
-  <p class="text-sm font-serif font-medium leading-snug">{punto.titulo}</p>
-
-  {punto.resumen_ia && (
-    <p class="text-xs text-[var(--color-ink-muted)] mt-1 leading-relaxed">
-      {punto.resumen_ia}
-    </p>
-  )}
-
-  {esRelevante && (
-    <div class="mt-1 flex items-center gap-1">
-      {Array.from({ length: punto.relevancia_social ?? 0 }).map(() => (
-        <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
-      ))}
-      <span class="text-[10px] text-[var(--color-ink-muted)] ml-1">Alta relevancia ciudadana</span>
-    </div>
-  )}
 </li>
+
+<style>
+  .punto-item:hover {
+    box-shadow: var(--shadow-sm);
+  }
+</style>
