@@ -51,8 +51,28 @@ for (const votos of Object.values(votacionesPorPunto)) {
     }
   }
 }
-const maxConcejales = Math.max(...Object.values(concejalesPorPartido), 1);
 const concejalesOrdenados = Object.entries(concejalesPorPartido).sort((a, b) => b[1] - a[1]);
+
+// Half-donut (hemiciclo) geometry
+const totalConcejalesHemiciclo = concejalesOrdenados.reduce((s, [, n]) => s + n, 0);
+const halfDonutSlices = (() => {
+  const cx = 150, cy = 150, R = 128, r = 76;
+  let angle = Math.PI;
+  return concejalesOrdenados.map(([siglas, n]) => {
+    const p = resumenPartidos.find(rp => rp.siglas === siglas);
+    const da = (n / totalConcejalesHemiciclo) * Math.PI;
+    const a0 = angle, a1 = angle - da;
+    angle = a1;
+    const f = (v: number) => v.toFixed(2);
+    const x1 = cx + R * Math.cos(a0), y1 = cy - R * Math.sin(a0);
+    const x2 = cx + R * Math.cos(a1), y2 = cy - R * Math.sin(a1);
+    const x3 = cx + r * Math.cos(a1), y3 = cy - r * Math.sin(a1);
+    const x4 = cx + r * Math.cos(a0), y4 = cy - r * Math.sin(a0);
+    const large = da > Math.PI ? 1 : 0;
+    const path = `M${f(x1)},${f(y1)} A${R},${R},0,${large},0,${f(x2)},${f(y2)} L${f(x3)},${f(y3)} A${r},${r},0,${large},1,${f(x4)},${f(y4)}Z`;
+    return { siglas, n, color: p?.color_hex ?? '#888', partido: p?.partido ?? siglas, path };
+  });
+})();
 
 // Puntos polémicos (para stat card)
 const puntosControversia = puntos.filter((p) => {
@@ -211,63 +231,45 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
       </div>
 
       <div class="bg-white border border-[var(--color-border)] p-5">
-        <div class="space-y-3 mb-4">
-          {concejalesOrdenados.map(([siglas, n]) => {
-            const p = resumenPartidos.find(r => r.siglas === siglas);
-            if (!p) return null;
-            const barPct = Math.round((n / maxConcejales) * 100);
-            const totalVotos = p.favor + p.contra + p.abstenciones;
-            const pctFavor  = totalVotos > 0 ? (p.favor  / totalVotos) * 100 : 0;
-            const pctContra = totalVotos > 0 ? (p.contra / totalVotos) * 100 : 0;
-            const pctAbst   = totalVotos > 0 ? (p.abstenciones / totalVotos) * 100 : 0;
-            const comportamiento =
-              totalVotos === 0    ? null :
-              pctFavor  === 100   ? "Siempre a favor" :
-              pctContra === 100   ? "Siempre en contra" :
-              pctAbst   >= 80     ? "Mayoritariamente abstención" :
-              pctFavor  >= 60     ? `${Math.round(pctFavor)}% a favor` :
-              pctContra >= 60     ? `${Math.round(pctContra)}% en contra` :
-                                    `${Math.round(pctFavor)}% a favor`;
-            const compColor =
-              !comportamiento         ? "" :
-              pctFavor  > pctContra   ? "text-[var(--color-green)]" :
-              pctContra > pctFavor    ? "text-[var(--color-red)]"   :
-                                        "text-[var(--color-amber)]";
-            return (
-              <div class="flex items-center gap-3">
-                <div class="w-24 sm:w-32 shrink-0 flex items-center gap-2 min-w-0">
-                  <span class="w-2.5 h-2.5 rounded-full shrink-0" style={`background: ${p.color_hex}`} />
-                  <span class="text-sm font-semibold truncate" title={p.partido}>{siglas}</span>
-                </div>
-                <div class="flex-1 h-4 bg-[var(--color-bg)] rounded-sm overflow-hidden">
-                  <div class="h-full flex rounded-sm overflow-hidden" style={`width: ${barPct}%`}>
-                    {pctFavor  > 0 && <div style={`flex: ${pctFavor};  background: var(--color-green);`} class="h-full" />}
-                    {pctContra > 0 && <div style={`flex: ${pctContra}; background: var(--color-red);`}   class="h-full" />}
-                    {pctAbst   > 0 && <div style={`flex: ${pctAbst};   background: var(--color-amber);`} class="h-full" />}
-                    {totalVotos === 0 && <div style={`background: ${p.color_hex}; opacity: 0.25;`} class="h-full flex-1" />}
-                  </div>
-                </div>
-                <span class="text-sm font-bold w-5 text-right shrink-0">{n}</span>
-                {comportamiento && (
-                  <span class:list={["text-[10px] hidden sm:block w-36 shrink-0", compColor]}>
-                    {comportamiento}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+
+        <!-- Hemiciclo SVG -->
+        <div style="display:flex; justify-content:center; margin-bottom:16px;">
+          <svg
+            viewBox="0 0 300 155"
+            style="width:100%; max-width:340px; height:auto; display:block;"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-label="Composición del pleno"
+          >
+            {halfDonutSlices.map((slice) => (
+              <path d={slice.path} fill={slice.color} stroke="white" stroke-width="2" stroke-linejoin="round">
+                <title>{slice.partido}: {slice.n} {slice.n === 1 ? "concejal" : "concejales"}</title>
+              </path>
+            ))}
+            <!-- Total en el centro -->
+            <text x="150" y="138" text-anchor="middle" font-size="26" font-weight="700"
+                  fill="var(--color-ink)" font-family="var(--font-serif)" letter-spacing="-1">{totalConcejalesHemiciclo}</text>
+            <text x="150" y="151" text-anchor="middle" font-size="9" font-weight="600"
+                  fill="var(--color-ink-subtle)" font-family="var(--font-sans)" letter-spacing="1">CONCEJALES</text>
+          </svg>
         </div>
 
-        <div class="pt-3 border-t border-[var(--color-border)] flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[var(--color-ink-muted)]">
+        <!-- Leyenda -->
+        <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px 18px; margin-bottom:14px;">
+          {halfDonutSlices.map((slice) => (
+            <div style="display:flex; align-items:center; gap:6px; font-size:0.8125rem;">
+              <span style={`width:10px; height:10px; border-radius:50%; background:${slice.color}; flex-shrink:0;`} />
+              <span style="font-weight:600;">{slice.siglas}</span>
+              <span style="color:var(--color-ink-muted);">{slice.n}</span>
+            </div>
+          ))}
+        </div>
+
+        <!-- Footer -->
+        <div style="padding-top:10px; border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap; gap:4px 20px; font-size:0.75rem; color:var(--color-ink-muted);">
           {(meta?.n_asistentes ?? 0) > 0 && (
-            <span><strong class="text-[var(--color-ink)]">{meta!.n_asistentes}</strong> concejales presentes</span>
+            <span><strong style="color:var(--color-ink);">{meta!.n_asistentes}</strong> concejales presentes</span>
           )}
-          <span><strong class="text-[var(--color-ink)]">{concejalesOrdenados.length}</strong> {concejalesOrdenados.length === 1 ? "partido" : "partidos"} con votaciones</span>
-          <span class="ml-auto hidden sm:flex items-center gap-3 text-[9px]">
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background:var(--color-green)"/>A favor</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background:var(--color-red)"/>En contra</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background:var(--color-amber)"/>Abstención</span>
-          </span>
+          <span><strong style="color:var(--color-ink);">{concejalesOrdenados.length}</strong> {concejalesOrdenados.length === 1 ? "partido" : "partidos"}</span>
         </div>
       </div>
     </section>
