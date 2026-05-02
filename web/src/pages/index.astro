@@ -280,8 +280,8 @@ const CATEGORIAS: Record<string, string> = {
     margin-bottom: 64px;
   }
   .stats-cell {
-    flex: 0 1 220px;
-    padding: 20px 32px;
+    flex: 1;
+    padding: 20px 16px;
     text-align: center;
     border-right: 1px solid var(--color-border);
   }
@@ -489,9 +489,8 @@ const CATEGORIAS: Record<string, string> = {
     .hero-form { flex-direction: column; }
     .stats-bar { display: grid; grid-template-columns: 1fr 1fr; }
     .stats-cell { border-right: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
-    .stats-cell:nth-child(2) { border-right: none; }
-    .stats-cell:nth-child(3), .stats-cell:nth-child(4) { border-bottom: none; }
-    .stats-cell:nth-child(4) { border-right: none; }
+    .stats-cell:nth-child(even) { border-right: none; }
+    .stats-cell:nth-last-child(-n+2) { border-bottom: none; }
     .highlights-grid { grid-template-columns: 1fr; }
     .how-grid { grid-template-columns: 1fr; gap: 32px; }
     .cta2-section { padding: 48px 16px; }
