@@ -404,7 +404,8 @@ CRITERIOS DE RELEVANCIA SOCIAL (1-5):
 - 1: Trámites puramente internos (compatibilidades, nombramientos técnicos, etc.).
 
 IMPORTANTE:
-- Solo incluye en "puntos" los del PARTE RESOLUTIVA (no "dar cuenta" administrativos sin relevancia).
+- Incluye TODOS los puntos del orden del día, tanto los resolutivos como los de "dar cuenta".
+- Para los puntos de "dar cuenta" el resumen_ia puede ser más breve (1 frase).
 - Escribe los resúmenes en castellano, lenguaje ciudadano, sin jerga burocrática.
 - Destaca cuando un punto fue rechazado por la mayoría o aprobado solo con votos del gobierno.
 - Si hay impacto en colectivos vulnerables, menciónalo explícitamente.

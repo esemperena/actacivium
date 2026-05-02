@@ -75,6 +75,37 @@ if (meta?.municipio_id) {
   } catch {}
 }
 
+// Descripción derivada cuando no hay resumen_ia
+function describir(p: any): string | null {
+  if (p.resumen_ia) return p.resumen_ia;
+  const tipo: Record<string, string> = {
+    aprobacion_definitiva:     "Aprobación definitiva",
+    aprobacion_inicial:        "Aprobación inicial",
+    proposicion_normativa:     "Proposición normativa",
+    declaracion_institucional: "Declaración institucional",
+    mocion:                    "Moción",
+    interpelacion:             "Interpelación",
+    pregunta_oral:             "Pregunta oral",
+    dar_cuenta:                "El pleno toma conocimiento",
+    otro:                      "Trámite",
+  };
+  const cat: Record<string, string> = {
+    urbanismo: "urbanismo", vivienda: "vivienda", hacienda: "hacienda",
+    medio_ambiente: "medio ambiente", servicios_sociales: "servicios sociales",
+    movilidad: "movilidad", cultura: "cultura", derechos: "derechos",
+    gobernanza: "gobernanza", seguridad: "seguridad", educacion: "educación",
+  };
+  const tipoStr = tipo[p.tipo] ?? "Punto";
+  const catStr  = cat[p.categoria] ? ` en materia de ${cat[p.categoria]}` : "";
+  const resStr  =
+    p.resultado === "aprobado"
+      ? p.unanimidad ? " — aprobado por unanimidad." : " — aprobado."
+      : p.resultado === "rechazado" ? " — rechazado."
+      : p.resultado === "enterado"  ? "."
+      : ".";
+  return `${tipoStr}${catStr}${resStr}`;
+}
+
 // Fechas
 const fecha = new Date(pleno.fecha + "T12:00:00");
 const fechaLarga = fecha.toLocaleDateString("es-ES", {
@@ -296,9 +327,9 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
                     </span>
                   </div>
                   <p class="font-serif font-semibold text-base leading-snug mb-2">{p.titulo}</p>
-                  {(p.resumen_ia || p.texto_completo) && (
+                  {describir(p) && (
                     <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">
-                      {p.resumen_ia ?? p.texto_completo?.replace(/\s+/g, " ").trim().slice(0, 320) + (p.texto_completo?.length > 320 ? "…" : "")}
+                      {describir(p)}
                     </p>
                   )}
                 </div>
@@ -403,9 +434,9 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
                       <!-- Título completo -->
                       <p class="font-serif font-semibold text-[0.9375rem] leading-snug mb-1.5">{p.titulo}</p>
                       <!-- Descripción siempre visible -->
-                      {(p.resumen_ia || p.texto_completo) && (
+                      {describir(p) && (
                         <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">
-                          {p.resumen_ia ?? p.texto_completo?.replace(/\s+/g, " ").trim().slice(0, 280) + (p.texto_completo?.length > 280 ? "…" : "")}
+                          {describir(p)}
                         </p>
                       )}
                     </div>
@@ -495,9 +526,9 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
                   <span class="font-mono text-xs text-[var(--color-ink-muted)] shrink-0 mt-0.5 w-5">{p.numero}.</span>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-semibold leading-snug mb-1">{p.titulo}</p>
-                    {(p.resumen_ia || p.texto_completo) && (
+                    {describir(p) && (
                       <p class="text-xs text-[var(--color-ink-muted)] leading-relaxed mb-1.5">
-                        {p.resumen_ia ?? p.texto_completo?.replace(/\s+/g, " ").trim().slice(0, 220) + (p.texto_completo?.length > 220 ? "…" : "")}
+                        {describir(p)}
                       </p>
                     )}
                     {p.categoria && p.categoria !== "otro" && (
