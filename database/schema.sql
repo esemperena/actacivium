@@ -229,6 +229,7 @@ create table scraping_log (
 create or replace view v_plenos as
 select
   p.id,
+  p.municipio_id,
   p.numero_acta,
   p.fecha,
   p.tipo_sesion,
@@ -243,7 +244,7 @@ select
 from plenos p
 join municipios m on m.id = p.municipio_id
 left join puntos pu on pu.pleno_id = p.id
-group by p.id, m.nombre;
+group by p.id, p.municipio_id, m.nombre;
 
 -- Vista: posición de cada partido por categoría temática
 create or replace view v_votos_por_partido_categoria as
