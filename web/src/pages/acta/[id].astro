@@ -12,22 +12,43 @@ const [puntos, { data: meta }] = await Promise.all([
   getPuntosPleno(id!),
   supabase
     .from("plenos")
-    .select("url_pdf_original, n_asistentes, n_ausentes, alcalde_nombre, secretaria_nombre, hora_inicio, hora_fin, texto_completo, municipio_id")
+    .select("url_pdf_original, n_asistentes, n_ausentes, alcalde_nombre, secretaria_nombre, hora_inicio, hora_fin, municipio_id")
     .eq("id", id!)
     .single(),
 ]);
 
-// Fetch votes for each punto
+// Votaciones para todos los puntos
 const votacionesPorPunto: Record<string, any[]> = {};
-for (const p of puntos) {
-  if (p.resultado !== "sin_votacion" && p.resultado !== "enterado") {
+await Promise.all(
+  puntos.map(async (p) => {
     const v = await getVotacionesPunto(p.id);
     if (v.length > 0) votacionesPorPunto[p.id] = v;
+  })
+);
+
+// ── Resumen por partido (acumulado del pleno) ────────────────────────────────
+const partidoMap: Record<string, { siglas: string; partido: string; color_hex: string; favor: number; contra: number; abstenciones: number; nPuntos: number }> = {};
+for (const votos of Object.values(votacionesPorPunto)) {
+  for (const v of votos) {
+    if (!partidoMap[v.siglas]) {
+      partidoMap[v.siglas] = { siglas: v.siglas, partido: v.partido, color_hex: v.color_hex, favor: 0, contra: 0, abstenciones: 0, nPuntos: 0 };
+    }
+    partidoMap[v.siglas].favor       += v.votos_favor;
+    partidoMap[v.siglas].contra      += v.votos_contra;
+    partidoMap[v.siglas].abstenciones+= v.abstenciones;
+    partidoMap[v.siglas].nPuntos++;
   }
 }
+const resumenPartidos = Object.values(partidoMap).sort((a, b) => b.favor - a.favor);
 
-// Municipio info for breadcrumb
-let municipioSlug = "";
+// Puntos polémicos: tiene votos Y no es unánime
+const puntosControversia = puntos.filter((p) => {
+  const v = votacionesPorPunto[p.id];
+  return v && v.length > 0 && !p.unanimidad && (p.resultado === "aprobado" || p.resultado === "rechazado");
+});
+
+// Municipio info para breadcrumb
+let municipioSlug   = "";
 let municipioNombre = pleno.municipio ?? "San Sebastián";
 if (meta?.municipio_id) {
   try {
@@ -36,12 +57,12 @@ if (meta?.municipio_id) {
       .select("slug, nombre")
       .eq("id", meta.municipio_id)
       .single();
-    municipioSlug  = muni?.slug  ?? "";
-    municipioNombre= muni?.nombre ?? municipioNombre;
+    municipioSlug   = muni?.slug   ?? "";
+    municipioNombre = muni?.nombre ?? municipioNombre;
   } catch {}
 }
 
-// ── Fecha ──────────────────────────────────────────────────────────────────
+// ── Fechas ───────────────────────────────────────────────────────────────────
 const fecha = new Date(pleno.fecha + "T12:00:00");
 const fechaLarga = fecha.toLocaleDateString("es-ES", {
   weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -50,36 +71,20 @@ const fechaCorta = fecha.toLocaleDateString("es-ES", {
   day: "numeric", month: "short", year: "numeric",
 });
 
-// ── Categorías únicas presentes ────────────────────────────────────────────
+// ── Categorías únicas ─────────────────────────────────────────────────────────
 const categorias = [...new Set(
   puntos.map((p) => p.categoria).filter((c) => c && c !== "otro")
 )];
 
-// ── Puntos agrupados ──────────────────────────────────────────────────────
-const puntosUrgentes    = puntos.filter((p) => p.es_urgencia);
-const puntosResolutivos = puntos.filter((p) => !p.es_urgencia && !["dar_cuenta","otro"].includes(p.tipo));
-const puntosInformativos= puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta","otro"].includes(p.tipo));
-
-// ── Texto preview ──────────────────────────────────────────────────────────
-const textoPreview = (meta?.texto_completo ?? "")
-  .replace(/AKTA \d+ ACTA \d+\n[^\n]+\n/g, "")
-  .slice(0, 3000)
-  .replace(/\n{3,}/g, "\n\n")
-  .trim();
-
-const RESULTADO_COLOR: Record<string, string> = {
-  aprobado:     "text-[#1b5e20] font-semibold",
-  rechazado:    "text-[#c41a1a] font-semibold",
-  enterado:     "text-[var(--color-ink-muted)]",
-  retirado:     "text-[#92400e] font-semibold",
-  aplazado:     "text-[#92400e]",
-  sin_votacion: "text-[var(--color-ink-muted)]",
-};
+// ── Puntos agrupados ──────────────────────────────────────────────────────────
+const puntosUrgentes     = puntos.filter((p) => p.es_urgencia);
+const puntosResolutivos  = puntos.filter((p) => !p.es_urgencia && !["dar_cuenta","otro"].includes(p.tipo));
+const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta","otro"].includes(p.tipo));
 ---
 
 <Base
   title={`Pleno nº ${pleno.numero_acta} · ${fechaCorta} · ${municipioNombre}`}
-  description={`Pleno municipal de ${municipioNombre} nº ${pleno.numero_acta}, celebrado el ${fechaLarga}. ${puntos.length} puntos del orden del día.`}
+  description={`Pleno municipal de ${municipioNombre} nº ${pleno.numero_acta}, ${fechaLarga}. ${puntos.length} puntos del orden del día.`}
 >
 
   <!-- ── MIGAS ───────────────────────────────────────────────────────────── -->
@@ -107,33 +112,45 @@ const RESULTADO_COLOR: Record<string, string> = {
       ]}>
         Sesión {pleno.tipo_sesion}
       </span>
-      {meta?.url_pdf_original && (
-        <a href={meta.url_pdf_original} target="_blank" rel="noopener noreferrer"
-           class="ml-auto text-xs font-semibold border border-[var(--color-ink)] px-3 py-1.5 hover:bg-[var(--color-ink)] hover:text-white transition-colors">
-          PDF original ↗
-        </a>
-      )}
     </div>
 
     <h1 class="headline-xl mb-4" style="text-transform: capitalize;">{fechaLarga}</h1>
 
     {pleno.resumen_ia && (
-      <p class="text-base text-[var(--color-ink-muted)] leading-relaxed border-l-4 border-[var(--color-accent)] pl-4 max-w-2xl">
+      <p class="text-base text-[var(--color-ink-muted)] leading-relaxed border-l-4 border-[var(--color-accent)] pl-4 max-w-2xl mb-4">
         {pleno.resumen_ia}
       </p>
     )}
+
+    <!-- Ficha rápida -->
+    <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--color-ink-muted)]">
+      {meta?.alcalde_nombre && <span>Preside: <strong class="text-[var(--color-ink)]">{meta.alcalde_nombre}</strong></span>}
+      {meta?.hora_inicio && <span>Inicio: <strong class="text-[var(--color-ink)]">{String(meta.hora_inicio).slice(0,5)} h</strong></span>}
+      {(meta?.n_asistentes ?? 0) > 0 && (
+        <span>
+          Asistencia: <strong class="text-[var(--color-ink)]">{meta!.n_asistentes} concejales</strong>
+          {(meta?.n_ausentes ?? 0) > 0 && <span> · {meta!.n_ausentes} ausentes</span>}
+        </span>
+      )}
+      {meta?.url_pdf_original && (
+        <a href={meta.url_pdf_original} target="_blank" rel="noopener noreferrer"
+           class="ml-auto font-semibold text-[var(--color-accent)] hover:underline flex items-center gap-1">
+          ↓ Descargar acta en PDF
+        </a>
+      )}
+    </div>
   </header>
 
   <!-- ── STATS ──────────────────────────────────────────────────────────── -->
   <section class="mb-8">
     <div class="grid grid-cols-3 sm:grid-cols-6 border border-[var(--color-border)] divide-x divide-y sm:divide-y-0 divide-[var(--color-border)]">
       {[
-        { label: "Puntos",      value: pleno.total_puntos,          cls: "" },
-        { label: "Aprobados",   value: pleno.aprobados,             cls: "text-[#1b5e20]" },
-        { label: "Rechazados",  value: pleno.rechazados,            cls: "text-[#c41a1a]" },
-        { label: "Unanimidad",  value: pleno.unanimes,              cls: "" },
+        { label: "Puntos",      value: pleno.total_puntos,         cls: "" },
+        { label: "Aprobados",   value: pleno.aprobados,            cls: "text-[var(--color-green)]" },
+        { label: "Rechazados",  value: pleno.rechazados,           cls: "text-[var(--color-red)]" },
+        { label: "Unanimidad",  value: pleno.unanimes,             cls: "" },
+        { label: "Polémicos",   value: puntosControversia.length,  cls: puntosControversia.length > 0 ? "text-[var(--color-amber)]" : "" },
         { label: "Concejales",  value: meta?.n_asistentes ?? "—",  cls: "" },
-        { label: "Ausentes",    value: meta?.n_ausentes   ?? 0,    cls: "text-[var(--color-ink-muted)]" },
       ].map(({ label, value, cls }) => (
         <div class="text-center py-5 px-2 bg-white">
           <p class:list={["font-serif font-bold text-3xl", cls]}>{value}</p>
@@ -143,64 +160,107 @@ const RESULTADO_COLOR: Record<string, string> = {
     </div>
   </section>
 
-  <!-- ── FICHA ──────────────────────────────────────────────────────────── -->
-  <section class="mb-10">
-    <div class="section-rule mb-4">
-      <span class="text-xs font-bold uppercase tracking-widest">Ficha del pleno</span>
-    </div>
-    <dl class="grid sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4 text-sm">
-      <div>
-        <dt class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mb-0.5">Fecha</dt>
-        <dd class="font-medium" style="text-transform: capitalize;">{fechaLarga}</dd>
+  <!-- ── POSICIÓN DE LOS PARTIDOS ──────────────────────────────────────── -->
+  {resumenPartidos.length > 0 && (
+    <section class="mb-10">
+      <div class="section-rule mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest">Posición de los partidos en este pleno</span>
       </div>
-      {meta?.hora_inicio && (
-        <div>
-          <dt class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mb-0.5">Hora de inicio</dt>
-          <dd class="font-medium">{String(meta.hora_inicio).slice(0, 5)} h</dd>
-        </div>
-      )}
-      {meta?.alcalde_nombre && (
-        <div>
-          <dt class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mb-0.5">Preside</dt>
-          <dd class="font-medium">{meta.alcalde_nombre}</dd>
-        </div>
-      )}
-      {meta?.secretaria_nombre && (
-        <div>
-          <dt class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mb-0.5">Secretaría</dt>
-          <dd class="font-medium">{meta.secretaria_nombre}</dd>
-        </div>
-      )}
-      <div>
-        <dt class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mb-0.5">Tipo de sesión</dt>
-        <dd class="font-medium" style="text-transform: capitalize;">{pleno.tipo_sesion}</dd>
+
+      <div class="border border-[var(--color-border)] bg-white overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-[var(--color-border)]">
+              <th class="text-left px-4 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold w-1/3">Partido</th>
+              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-green)] font-semibold">A favor</th>
+              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-red)] font-semibold">En contra</th>
+              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold">Abstención</th>
+              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold hidden sm:table-cell">Puntos votados</th>
+              <th class="text-left px-4 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold hidden md:table-cell">Perfil</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumenPartidos.map((p) => {
+              const total = p.favor + p.contra + p.abstenciones;
+              const pctFavor = total > 0 ? Math.round((p.favor / total) * 100) : 0;
+              const perfil = p.contra > p.favor
+                ? { label: "Principalmente en contra", cls: "text-[var(--color-red)]" }
+                : p.abstenciones > p.favor && p.abstenciones > p.contra
+                ? { label: "Se abstiene habitualmente", cls: "text-[var(--color-ink-muted)]" }
+                : pctFavor === 100
+                ? { label: "Vota siempre a favor", cls: "text-[var(--color-green)]" }
+                : { label: "Mayoritariamente a favor", cls: "text-[var(--color-green)]" };
+              return (
+                <tr class="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)]">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                      <span class="w-2.5 h-2.5 rounded-full shrink-0" style={`background: ${p.color_hex}`} />
+                      <span class="font-semibold">{p.siglas}</span>
+                      <span class="text-[var(--color-ink-muted)] text-xs hidden lg:inline truncate max-w-[160px]">{p.partido}</span>
+                    </div>
+                  </td>
+                  <td class="px-3 py-3 text-center">
+                    <span class="font-bold text-[var(--color-green)]">{p.favor}</span>
+                  </td>
+                  <td class="px-3 py-3 text-center">
+                    <span class:list={["font-bold", p.contra > 0 ? "text-[var(--color-red)]" : "text-[var(--color-ink-subtle)]"]}>
+                      {p.contra > 0 ? p.contra : "—"}
+                    </span>
+                  </td>
+                  <td class="px-3 py-3 text-center">
+                    <span class:list={["font-bold", p.abstenciones > 0 ? "text-[var(--color-amber)]" : "text-[var(--color-ink-subtle)]"]}>
+                      {p.abstenciones > 0 ? p.abstenciones : "—"}
+                    </span>
+                  </td>
+                  <td class="px-3 py-3 text-center text-[var(--color-ink-muted)] hidden sm:table-cell">
+                    {p.nPuntos}
+                  </td>
+                  <td class="px-4 py-3 hidden md:table-cell">
+                    <span class:list={["text-xs", perfil.cls]}>{perfil.label}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      {(meta?.n_asistentes ?? 0) > 0 && (
-        <div>
-          <dt class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mb-0.5">Asistencia</dt>
-          <dd class="font-medium">
-            {meta!.n_asistentes} concejales
-            {(meta?.n_ausentes ?? 0) > 0 && (
-              <span class="font-normal text-[var(--color-ink-muted)]"> · {meta!.n_ausentes} ausentes</span>
-            )}
-          </dd>
-        </div>
-      )}
-      {categorias.length > 0 && (
-        <div class="sm:col-span-2">
-          <dt class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] mb-2">Temas tratados</dt>
-          <dd class="flex flex-wrap gap-2">
-            {categorias.map((cat) => (
-              <a href={`/temas/${cat}`}
-                 class:list={["badge hover:opacity-75 transition-opacity", `badge-${cat}`]}>
-                {CATEGORIAS[cat] ?? cat}
-              </a>
+
+      {/* Puntos polémicos */}
+      {puntosControversia.length > 0 && (
+        <div class="mt-4 p-4 border border-[var(--color-border)] bg-white">
+          <p class="text-xs font-bold uppercase tracking-widest text-[var(--color-ink-muted)] mb-3">
+            Puntos con votación dividida ({puntosControversia.length})
+          </p>
+          <div class="space-y-2">
+            {puntosControversia.map((p) => (
+              <div class="flex items-start gap-3 text-sm">
+                <span class="font-mono text-xs text-[var(--color-ink-subtle)] shrink-0 mt-0.5 w-5">{p.numero}.</span>
+                <span class="flex-1 leading-snug text-[var(--color-ink)]">{p.titulo}</span>
+                <span class:list={[
+                  "shrink-0 text-xs font-semibold",
+                  p.resultado === "aprobado" ? "text-[var(--color-green)]" : "text-[var(--color-red)]"
+                ]}>
+                  {RESULTADO_LABEL[p.resultado]}
+                </span>
+              </div>
             ))}
-          </dd>
+          </div>
         </div>
       )}
-    </dl>
-  </section>
+    </section>
+  )}
+
+  <!-- ── TEMAS TRATADOS ─────────────────────────────────────────────────── -->
+  {categorias.length > 0 && (
+    <div class="flex flex-wrap gap-2 mb-10">
+      {categorias.map((cat) => (
+        <a href={`/temas/${cat}`}
+           class:list={["badge hover:opacity-75 transition-opacity", `badge-${cat}`]}>
+          {CATEGORIAS[cat] ?? cat}
+        </a>
+      ))}
+    </div>
+  )}
 
   <!-- ── ORDEN DEL DÍA ──────────────────────────────────────────────────── -->
   <section class="mb-10">
@@ -216,56 +276,68 @@ const RESULTADO_COLOR: Record<string, string> = {
       </p>
     ) : (
       <div class="space-y-3">
-        <!-- Urgencias primero -->
+
+        <!-- Urgencias -->
         {puntosUrgentes.map((p) => {
           const votos = votacionesPorPunto[p.id] ?? [];
           return (
-            <div class="border border-amber-200 bg-amber-50 p-5">
+            <div class="border border-[var(--color-amber)] bg-[var(--color-amber-bg)] rounded-[var(--radius)] p-5">
               <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
-                <span class="font-mono text-xs font-bold text-amber-700 shrink-0 mt-0.5">URG</span>
                 <div class="flex-1 min-w-0">
                   <div class="flex flex-wrap gap-2 mb-2">
-                    <span class="badge bg-amber-100 text-amber-800">Urgencia</span>
+                    <span class="badge" style="background: var(--color-amber-bg); color: var(--color-amber);">Urgencia</span>
                     {p.categoria !== "otro" && (
                       <span class:list={["badge", `badge-${p.categoria}`]}>{CATEGORIAS[p.categoria]}</span>
                     )}
+                    <span class="text-[10px] border border-[var(--color-border)] rounded px-1.5 text-[var(--color-ink-muted)]">
+                      {TIPO_LABEL[p.tipo] ?? p.tipo}
+                    </span>
                   </div>
-                  <p class="font-serif font-semibold text-base leading-snug">{p.titulo}</p>
-                  {p.resumen_ia && <p class="text-sm text-[var(--color-ink-muted)] mt-2">{p.resumen_ia}</p>}
-                  {votos.length > 0 && <VotsTable votos={votos} />}
+                  <p class="font-serif font-semibold text-base leading-snug mb-2">{p.titulo}</p>
+                  {p.resumen_ia && <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">{p.resumen_ia}</p>}
+                  {votos.length > 0 && (
+                    <VotacionDetalle votos={votos} unanimidad={p.unanimidad} />
+                  )}
                 </div>
-                <span class:list={["text-xs shrink-0 mt-0.5 font-semibold", RESULTADO_COLOR[p.resultado] ?? ""]}>
-                  {RESULTADO_LABEL[p.resultado] ?? p.resultado}
-                  {p.unanimidad && <span class="font-normal text-[var(--color-ink-muted)]"> · unánime</span>}
-                </span>
+                <div class="shrink-0 text-right">
+                  <ResultadoBadge resultado={p.resultado} unanimidad={p.unanimidad} />
+                </div>
               </div>
             </div>
           );
         })}
 
-        <!-- Puntos resolutivos -->
+        <!-- Parte resolutiva -->
         {puntosResolutivos.length > 0 && (
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-muted)] py-2 mt-2">
-              — Parte resolutiva
-            </p>
+            {puntosUrgentes.length > 0 && (
+              <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-muted)] py-3 mt-1">
+                — Parte resolutiva
+              </p>
+            )}
             {puntosResolutivos.map((p) => {
               const votos = votacionesPorPunto[p.id] ?? [];
+              const esPolemico = votos.length > 0 && !p.unanimidad && (p.resultado === "aprobado" || p.resultado === "rechazado");
               return (
                 <div class:list={[
-                  "border border-[var(--color-border)] bg-white p-5 mb-3",
-                  (p.relevancia_social ?? 0) >= 4 && "border-l-4 border-l-[var(--color-accent)]",
+                  "border bg-white rounded-[var(--radius)] p-5 mb-3",
+                  esPolemico
+                    ? "border-[var(--color-amber)]"
+                    : (p.relevancia_social ?? 0) >= 4
+                    ? "border-l-4 border-l-[var(--color-accent)] border-[var(--color-border)]"
+                    : "border-[var(--color-border)]",
                 ]}>
                   <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
-                    <span class="font-mono text-sm font-bold text-[var(--color-ink-muted)] w-6 shrink-0 mt-0.5">
+                    <span class="font-mono text-sm font-bold text-[var(--color-ink-subtle)] w-6 shrink-0 mt-0.5">
                       {p.numero}.
                     </span>
                     <div class="flex-1 min-w-0">
+                      <!-- Badges -->
                       <div class="flex flex-wrap gap-2 mb-2">
                         {p.categoria !== "otro" && (
                           <span class:list={["badge", `badge-${p.categoria}`]}>{CATEGORIAS[p.categoria]}</span>
                         )}
-                        <span class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] border border-[var(--color-border)] px-2 py-0.5">
+                        <span class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] border border-[var(--color-border)] rounded px-1.5 py-0.5">
                           {TIPO_LABEL[p.tipo] ?? p.tipo}
                         </span>
                         {(p.relevancia_social ?? 0) >= 4 && (
@@ -273,45 +345,118 @@ const RESULTADO_COLOR: Record<string, string> = {
                             {Array.from({ length: p.relevancia_social ?? 0 }).map(() => (
                               <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] inline-block" />
                             ))}
-                            <span class="ml-0.5 uppercase tracking-wide">Alta relevancia</span>
+                            <span class="uppercase tracking-wide ml-0.5">Alta relevancia</span>
+                          </span>
+                        )}
+                        {esPolemico && (
+                          <span class="text-[10px] font-semibold uppercase tracking-wide" style="color: var(--color-amber);">
+                            Votación dividida
                           </span>
                         )}
                       </div>
+
+                      <!-- Título -->
                       <p class="font-serif font-semibold text-base leading-snug">{p.titulo}</p>
+
+                      <!-- Resumen IA -->
                       {p.resumen_ia && (
                         <p class="text-sm text-[var(--color-ink-muted)] mt-2 leading-relaxed">{p.resumen_ia}</p>
                       )}
+
+                      <!-- Votaciones por partido -->
                       {votos.length > 0 && (
-                        <div class="mt-3 pt-3 border-t border-[var(--color-border)]">
-                          <p class="text-[10px] font-bold uppercase tracking-wider text-[var(--color-ink-muted)] mb-2">
-                            Votación por partido
+                        <div class="mt-4 pt-3 border-t border-[var(--color-border)]">
+                          <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-muted)] mb-3">
+                            Desglose de votos
                           </p>
-                          <div class="flex flex-wrap gap-2">
-                            {votos.map((v) => (
-                              <div class="flex items-center gap-1.5 text-xs border border-[var(--color-border)] px-2 py-1 bg-gray-50">
-                                <span class="w-2 h-2 rounded-full shrink-0"
-                                      style={`background:${v.color_hex}`} />
-                                <span class="font-semibold">{v.siglas}</span>
-                                <span class="text-[var(--color-ink-muted)]">
-                                  {v.votos_favor > 0 && <span class="text-[#1b5e20]">{v.votos_favor}✓</span>}
-                                  {v.votos_contra > 0 && <span class="text-[#c41a1a] ml-1">{v.votos_contra}✗</span>}
-                                  {v.abstenciones > 0 && <span class="ml-1">{v.abstenciones}~</span>}
-                                </span>
-                              </div>
-                            ))}
+                          <div class="overflow-x-auto">
+                            <table class="text-xs w-full">
+                              <thead>
+                                <tr class="text-[var(--color-ink-muted)]">
+                                  <th class="text-left pb-1 pr-4 font-semibold uppercase tracking-wider text-[10px]">Partido</th>
+                                  <th class="text-center pb-1 px-3 font-semibold uppercase tracking-wider text-[10px] text-[var(--color-green)]">A favor</th>
+                                  <th class="text-center pb-1 px-3 font-semibold uppercase tracking-wider text-[10px] text-[var(--color-red)]">En contra</th>
+                                  <th class="text-center pb-1 px-3 font-semibold uppercase tracking-wider text-[10px] text-[var(--color-amber)]">Abstención</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {votos.map((v) => (
+                                  <tr class="border-t border-[var(--color-border)]">
+                                    <td class="py-2 pr-4">
+                                      <div class="flex items-center gap-2">
+                                        <span class="w-2 h-2 rounded-full shrink-0" style={`background: ${v.color_hex}`} />
+                                        <span class="font-semibold">{v.siglas}</span>
+                                      </div>
+                                    </td>
+                                    <td class="py-2 px-3 text-center">
+                                      {v.votos_favor > 0
+                                        ? <span class="font-bold text-[var(--color-green)]">{v.votos_favor}</span>
+                                        : <span class="text-[var(--color-ink-subtle)]">—</span>}
+                                    </td>
+                                    <td class="py-2 px-3 text-center">
+                                      {v.votos_contra > 0
+                                        ? <span class="font-bold text-[var(--color-red)]">{v.votos_contra}</span>
+                                        : <span class="text-[var(--color-ink-subtle)]">—</span>}
+                                    </td>
+                                    <td class="py-2 px-3 text-center">
+                                      {v.abstenciones > 0
+                                        ? <span class="font-bold text-[var(--color-amber)]">{v.abstenciones}</span>
+                                        : <span class="text-[var(--color-ink-subtle)]">—</span>}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <!-- Totales -->
+                              {votos.length > 1 && (() => {
+                                const totFavor = votos.reduce((s, v) => s + v.votos_favor, 0);
+                                const totContra = votos.reduce((s, v) => s + v.votos_contra, 0);
+                                const totAbst  = votos.reduce((s, v) => s + v.abstenciones, 0);
+                                return (
+                                  <tfoot>
+                                    <tr class="border-t-2 border-[var(--color-border-strong)] bg-[var(--color-bg)]">
+                                      <td class="py-1.5 pr-4 text-[10px] font-bold uppercase tracking-wider text-[var(--color-ink-muted)]">Total</td>
+                                      <td class="py-1.5 px-3 text-center font-bold text-[var(--color-green)]">{totFavor}</td>
+                                      <td class="py-1.5 px-3 text-center font-bold text-[var(--color-red)]">{totContra > 0 ? totContra : "—"}</td>
+                                      <td class="py-1.5 px-3 text-center font-bold text-[var(--color-amber)]">{totAbst > 0 ? totAbst : "—"}</td>
+                                    </tr>
+                                  </tfoot>
+                                );
+                              })()}
+                            </table>
                           </div>
                         </div>
                       )}
+
+                      {/* Sin votos pero aprobado/rechazado */}
+                      {votos.length === 0 && (p.resultado === "aprobado" || p.resultado === "rechazado") && (
+                        <p class="text-xs text-[var(--color-ink-subtle)] mt-3 italic">
+                          {p.unanimidad ? "Aprobado por unanimidad sin detalle de votos registrado." : "Sin desglose de votos disponible."}
+                        </p>
+                      )}
                     </div>
-                    <div class="shrink-0 mt-0.5 text-right">
-                      <span class:list={["text-xs", RESULTADO_COLOR[p.resultado] ?? ""]}>
-                        {RESULTADO_LABEL[p.resultado] ?? p.resultado}
-                      </span>
+
+                    <!-- Resultado -->
+                    <div class="shrink-0 mt-0.5 text-right min-w-[72px]">
+                      {p.resultado === "aprobado" && (
+                        <span class="inline-block px-2 py-0.5 text-xs font-bold rounded" style="background: var(--color-green-bg); color: var(--color-green);">
+                          Aprobado
+                        </span>
+                      )}
+                      {p.resultado === "rechazado" && (
+                        <span class="inline-block px-2 py-0.5 text-xs font-bold rounded" style="background: var(--color-red-bg); color: var(--color-red);">
+                          Rechazado
+                        </span>
+                      )}
+                      {!["aprobado","rechazado"].includes(p.resultado) && (
+                        <span class="text-xs text-[var(--color-ink-muted)]">
+                          {RESULTADO_LABEL[p.resultado] ?? p.resultado}
+                        </span>
+                      )}
                       {p.unanimidad === true && (
-                        <p class="text-[10px] text-[var(--color-ink-muted)]">unanimidad</p>
+                        <p class="text-[10px] text-[var(--color-ink-subtle)] mt-0.5">unanimidad</p>
                       )}
                       {p.unanimidad === false && (
-                        <p class="text-[10px] text-[var(--color-ink-muted)]">mayoría</p>
+                        <p class="text-[10px] text-[var(--color-ink-subtle)] mt-0.5">mayoría</p>
                       )}
                     </div>
                   </div>
@@ -321,7 +466,7 @@ const RESULTADO_COLOR: Record<string, string> = {
           </div>
         )}
 
-        <!-- Puntos informativos (dar cuenta) en collapsible -->
+        <!-- Puntos informativos (dar cuenta) colapsable -->
         {puntosInformativos.length > 0 && (
           <details class="group mt-4">
             <summary class="section-rule mb-0 cursor-pointer list-none flex items-center justify-between py-2">
@@ -333,15 +478,18 @@ const RESULTADO_COLOR: Record<string, string> = {
             </summary>
             <div class="mt-3 space-y-2">
               {puntosInformativos.map((p) => (
-                <div class="border border-[var(--color-border)] bg-white px-5 py-3 flex items-start gap-4">
+                <div class="border border-[var(--color-border)] bg-white rounded-[var(--radius)] px-5 py-3 flex items-start gap-4">
                   <span class="font-mono text-xs text-[var(--color-ink-muted)] shrink-0 mt-0.5 w-5">{p.numero}.</span>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium leading-snug">{p.titulo}</p>
+                    {p.resumen_ia && (
+                      <p class="text-xs text-[var(--color-ink-muted)] mt-1 leading-relaxed">{p.resumen_ia}</p>
+                    )}
                     {p.categoria && p.categoria !== "otro" && (
                       <span class:list={["badge mt-1.5", `badge-${p.categoria}`]}>{CATEGORIAS[p.categoria]}</span>
                     )}
                   </div>
-                  <span class="text-xs text-[var(--color-ink-muted)] shrink-0">Enterado</span>
+                  <span class="text-xs text-[var(--color-ink-subtle)] shrink-0">Enterado</span>
                 </div>
               ))}
             </div>
@@ -351,35 +499,19 @@ const RESULTADO_COLOR: Record<string, string> = {
     )}
   </section>
 
-  <!-- ── TEXTO DEL ACTA ─────────────────────────────────────────────────── -->
-  {textoPreview && (
-    <section class="mb-10">
-      <details class="group">
-        <summary class="section-rule mb-0 cursor-pointer list-none flex items-center justify-between py-2">
-          <span class="text-xs font-bold uppercase tracking-widest">Extracto del texto oficial</span>
-          <span class="text-xs text-[var(--color-ink-muted)] group-open:hidden">Mostrar ↓</span>
-          <span class="text-xs text-[var(--color-ink-muted)] hidden group-open:block">Cerrar ↑</span>
-        </summary>
-        <div class="mt-4 p-5 bg-white border border-[var(--color-border)] text-xs leading-relaxed text-[var(--color-ink-muted)] whitespace-pre-wrap font-mono max-h-80 overflow-y-auto">
-          {textoPreview}…
-        </div>
-        {meta?.url_pdf_original && (
-          <p class="mt-3 text-center">
-            <a href={meta.url_pdf_original} target="_blank" rel="noopener noreferrer"
-               class="text-xs font-semibold text-[var(--color-accent)] hover:underline">
-              Ver acta completa en PDF →
-            </a>
-          </p>
-        )}
-      </details>
-    </section>
-  )}
-
-  <!-- ── NAV ────────────────────────────────────────────────────────────── -->
-  <div class="border-t border-[var(--color-border)] pt-6 flex justify-between items-center">
-    {municipioSlug
-      ? <a href={`/ciudad/${municipioSlug}`} class="text-sm font-semibold hover:underline">← Todas las actas</a>
-      : <a href="/actas" class="text-sm font-semibold hover:underline">← Todas las actas</a>}
+  <!-- ── NAV INFERIOR ───────────────────────────────────────────────────── -->
+  <div class="border-t border-[var(--color-border)] pt-6 flex flex-wrap justify-between items-center gap-4">
+    <div class="flex items-center gap-6">
+      {municipioSlug
+        ? <a href={`/ciudad/${municipioSlug}`} class="text-sm font-semibold hover:underline">← Todas las actas</a>
+        : <a href="/actas" class="text-sm font-semibold hover:underline">← Todas las actas</a>}
+      {meta?.url_pdf_original && (
+        <a href={meta.url_pdf_original} target="_blank" rel="noopener noreferrer"
+           class="text-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:underline">
+          ↓ Acta en PDF
+        </a>
+      )}
+    </div>
     <a href="/newsletter" class="text-sm font-semibold text-[var(--color-accent)] hover:underline">
       Suscribirse a la newsletter →
     </a>
