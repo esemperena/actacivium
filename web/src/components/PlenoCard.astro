@@ -1,4 +1,10 @@
 ---
+interface Highlight {
+  titulo: string;
+  categoria: string;
+  resultado: string;
+}
+
 interface Props {
   pleno: {
     id: string;
@@ -14,9 +20,10 @@ interface Props {
     n_asistentes?: number | null;
   };
   featured?: boolean;
+  highlights?: Highlight[];
 }
 
-const { pleno, featured = false } = Astro.props;
+const { pleno, featured = false, highlights = [] } = Astro.props;
 
 const fecha = new Date(pleno.fecha + "T12:00:00");
 const fechaLarga = fecha.toLocaleDateString("es-ES", {
@@ -24,6 +31,20 @@ const fechaLarga = fecha.toLocaleDateString("es-ES", {
 });
 const diaSemana = fecha.toLocaleDateString("es-ES", { weekday: "long" });
 const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
+
+const RESULTADO_DOT: Record<string, string> = {
+  aprobado:  "var(--color-green)",
+  rechazado: "var(--color-red)",
+  enterado:  "var(--color-ink-subtle)",
+};
+
+const CATEGORIAS: Record<string, string> = {
+  urbanismo: "Urbanismo", vivienda: "Vivienda", hacienda: "Hacienda",
+  medio_ambiente: "Medio Ambiente", servicios_sociales: "Serv. Sociales",
+  movilidad: "Movilidad", cultura: "Cultura", gobernanza: "Gobernanza",
+  derechos: "Derechos", seguridad: "Seguridad", educacion: "Educación",
+  sanidad: "Sanidad", otro: "Otro",
+};
 ---
 
 <article style={`border-bottom: 1px solid var(--color-border); padding: ${featured ? "28px 0" : "20px 0"};`}>
@@ -58,23 +79,43 @@ const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
     >
       {diaSemana}, {fechaLarga}
     </time>
-
-    {pleno.resumen_ia && (
-      <p style={`
-        color: var(--color-ink-muted);
-        line-height: 1.65;
-        font-size: ${featured ? "0.9375rem" : "0.875rem"};
-        margin-top: 4px;
-      `}>
-        {pleno.resumen_ia.length > 200
-          ? pleno.resumen_ia.slice(0, 200) + "…"
-          : pleno.resumen_ia}
-      </p>
-    )}
   </a>
 
+  <!-- Resumen IA si existe -->
+  {pleno.resumen_ia && (
+    <p style={`
+      color: var(--color-ink-muted);
+      line-height: 1.65;
+      font-size: ${featured ? "0.9375rem" : "0.875rem"};
+      margin-bottom: 10px;
+    `}>
+      {pleno.resumen_ia.length > 220
+        ? pleno.resumen_ia.slice(0, 220) + "…"
+        : pleno.resumen_ia}
+    </p>
+  )}
+
+  <!-- Highlights: puntos más relevantes del pleno -->
+  {!pleno.resumen_ia && highlights.length > 0 && (
+    <ul style="margin: 8px 0 10px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px;">
+      {highlights.map((h) => (
+        <li style="display: flex; align-items: baseline; gap: 8px; font-size: 0.8125rem; line-height: 1.4;">
+          <span style={`width: 6px; height: 6px; border-radius: 50%; background: ${RESULTADO_DOT[h.resultado] ?? "var(--color-ink-subtle)"}; flex-shrink: 0; margin-top: 5px;`} />
+          <span style="color: var(--color-ink);">
+            {h.titulo.length > 90 ? h.titulo.slice(0, 90) + "…" : h.titulo}
+          </span>
+          {h.categoria && h.categoria !== "otro" && (
+            <span class:list={["badge", `badge-${h.categoria}`]} style="flex-shrink: 0;">
+              {CATEGORIAS[h.categoria] ?? h.categoria}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )}
+
   <!-- Stats -->
-  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 10px; font-size: 0.8125rem; color: var(--color-ink-subtle);">
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 6px; font-size: 0.8125rem; color: var(--color-ink-subtle);">
     <span style="font-weight: 600; color: var(--color-ink);">
       {pleno.total_puntos} {pleno.total_puntos === 1 ? "punto" : "puntos"}
     </span>

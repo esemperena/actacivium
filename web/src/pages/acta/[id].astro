@@ -294,7 +294,13 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
                     </span>
                   </div>
                   <p class="font-serif font-semibold text-base leading-snug mb-2">{p.titulo}</p>
-                  {p.resumen_ia && <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">{p.resumen_ia}</p>}
+                  {p.resumen_ia ? (
+                    <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">{p.resumen_ia}</p>
+                  ) : p.texto_completo ? (
+                    <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">
+                      {p.texto_completo.replace(/\s+/g, " ").trim().slice(0, 320)}{p.texto_completo.length > 320 ? "…" : ""}
+                    </p>
+                  ) : null}
                   {votos.length > 0 && (
                     <VotacionDetalle votos={votos} unanimidad={p.unanimidad} />
                   )}
@@ -358,10 +364,14 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
                       <!-- Título -->
                       <p class="font-serif font-semibold text-base leading-snug">{p.titulo}</p>
 
-                      <!-- Resumen IA -->
-                      {p.resumen_ia && (
+                      <!-- Resumen / descripción -->
+                      {p.resumen_ia ? (
                         <p class="text-sm text-[var(--color-ink-muted)] mt-2 leading-relaxed">{p.resumen_ia}</p>
-                      )}
+                      ) : p.texto_completo ? (
+                        <p class="text-sm text-[var(--color-ink-muted)] mt-2 leading-relaxed">
+                          {p.texto_completo.replace(/\s+/g, " ").trim().slice(0, 320)}{p.texto_completo.length > 320 ? "…" : ""}
+                        </p>
+                      ) : null}
 
                       <!-- Votaciones por partido -->
                       {votos.length > 0 && (

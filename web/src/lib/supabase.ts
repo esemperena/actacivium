@@ -51,6 +51,7 @@ export interface Punto {
   resultado: string;
   unanimidad: boolean | null;
   resumen_ia: string | null;
+  texto_completo: string | null;
   relevancia_social: number | null;
   es_urgencia: boolean;
 }

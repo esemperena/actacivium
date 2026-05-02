@@ -17,39 +17,59 @@ const page = Number(Astro.url.searchParams.get("page") ?? 1);
 const { data: plenos, count } = await getPlenosByMunicipio(municipio.id, page);
 const totalPages = Math.ceil((count ?? 0) / 20);
 
-// ── Stats ──────────────────────────────────────────────────────────────────
+// ── Stats + highlights en una sola query ──────────────────────────────────
 let totalAprobados = 0, totalRechazados = 0, totalPuntos = 0;
+let catStats: { categoria: string; total: number }[] = [];
+let highlightsByPleno: Record<string, { titulo: string; categoria: string; resultado: string }[]> = {};
+
 try {
   const ids = plenos.map((p) => p.id);
   if (ids.length > 0) {
     const { data: pts } = await supabase
       .from("puntos")
-      .select("resultado")
+      .select("pleno_id, titulo, categoria, resultado, relevancia_social, tipo")
       .in("pleno_id", ids);
-    totalPuntos    = pts?.length ?? 0;
-    totalAprobados = pts?.filter((p) => p.resultado === "aprobado").length ?? 0;
-    totalRechazados= pts?.filter((p) => p.resultado === "rechazado").length ?? 0;
-  }
-} catch {}
 
-// Categorías con puntos
-let catStats: { categoria: string; total: number }[] = [];
-try {
-  const ids = plenos.map((p) => p.id);
-  if (ids.length > 0) {
-    const { data } = await supabase
-      .from("puntos")
-      .select("categoria")
-      .in("pleno_id", ids)
-      .neq("categoria", "otro");
+    const allPts = pts ?? [];
+    totalPuntos     = allPts.length;
+    totalAprobados  = allPts.filter((p) => p.resultado === "aprobado").length;
+    totalRechazados = allPts.filter((p) => p.resultado === "rechazado").length;
+
+    // Categorías globales
     const counts: Record<string, number> = {};
-    for (const row of data ?? []) {
+    for (const row of allPts.filter((p) => p.categoria && p.categoria !== "otro")) {
       counts[row.categoria] = (counts[row.categoria] ?? 0) + 1;
     }
     catStats = Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([categoria, total]) => ({ categoria, total }));
+
+    // Highlights por pleno: hasta 3 puntos más relevantes, excluyendo dar_cuenta
+    for (const pt of allPts) {
+      if (!pt.titulo || pt.tipo === "dar_cuenta") continue;
+      if (!highlightsByPleno[pt.pleno_id]) highlightsByPleno[pt.pleno_id] = [];
+      if (highlightsByPleno[pt.pleno_id].length < 3) {
+        highlightsByPleno[pt.pleno_id].push({
+          titulo:    pt.titulo,
+          categoria: pt.categoria ?? "otro",
+          resultado: pt.resultado ?? "sin_votacion",
+        });
+      }
+    }
+    // Reordenar: primero los de mayor relevancia_social
+    const byRelevance: Record<string, typeof allPts> = {};
+    for (const pt of allPts.filter(p => p.tipo !== "dar_cuenta" && p.titulo)) {
+      if (!byRelevance[pt.pleno_id]) byRelevance[pt.pleno_id] = [];
+      byRelevance[pt.pleno_id].push(pt);
+    }
+    highlightsByPleno = {};
+    for (const [pid, pts2] of Object.entries(byRelevance)) {
+      highlightsByPleno[pid] = pts2
+        .sort((a, b) => (b.relevancia_social ?? 0) - (a.relevancia_social ?? 0))
+        .slice(0, 3)
+        .map(p => ({ titulo: p.titulo, categoria: p.categoria ?? "otro", resultado: p.resultado ?? "sin_votacion" }));
+    }
   }
 } catch {}
 
@@ -148,7 +168,7 @@ const primerFecha = plenos.length > 0
       ) : (
         <>
           <div>
-            {plenos.map((p, i) => <PlenoCard pleno={p} featured={i === 0 && page === 1} />)}
+            {plenos.map((p, i) => <PlenoCard pleno={p} featured={i === 0 && page === 1} highlights={highlightsByPleno[p.id]} />)}
           </div>
 
           {totalPages > 1 && (

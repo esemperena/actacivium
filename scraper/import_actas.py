@@ -440,7 +440,7 @@ def importar_acta(pdf_path: Path, municipio_id: str) -> bool:
         "n_puntos":          len(puntos),
         "n_asistentes":      meta.get("n_asistentes"),
         "n_ausentes":        meta.get("n_ausentes"),
-        "url_pdf_original":  "https://www.donostia.eus/secretaria/asuntospleno.nsf/",
+        "url_pdf_original":  None,  # Se actualiza con patch_pdf_urls.py
         "estado":            "procesado",
     }
 
