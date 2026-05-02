@@ -26,28 +26,41 @@ await Promise.all(
   })
 );
 
-// ── Resumen por partido (acumulado del pleno) ────────────────────────────────
+// Resumen por partido acumulado del pleno
 const partidoMap: Record<string, { siglas: string; partido: string; color_hex: string; favor: number; contra: number; abstenciones: number; nPuntos: number }> = {};
 for (const votos of Object.values(votacionesPorPunto)) {
   for (const v of votos) {
     if (!partidoMap[v.siglas]) {
       partidoMap[v.siglas] = { siglas: v.siglas, partido: v.partido, color_hex: v.color_hex, favor: 0, contra: 0, abstenciones: 0, nPuntos: 0 };
     }
-    partidoMap[v.siglas].favor       += v.votos_favor;
-    partidoMap[v.siglas].contra      += v.votos_contra;
-    partidoMap[v.siglas].abstenciones+= v.abstenciones;
+    partidoMap[v.siglas].favor        += v.votos_favor;
+    partidoMap[v.siglas].contra       += v.votos_contra;
+    partidoMap[v.siglas].abstenciones += v.abstenciones;
     partidoMap[v.siglas].nPuntos++;
   }
 }
-const resumenPartidos = Object.values(partidoMap).sort((a, b) => b.favor - a.favor);
+const resumenPartidos = Object.values(partidoMap).sort((a, b) => (b.favor + b.contra + b.abstenciones) - (a.favor + a.contra + a.abstenciones));
 
-// Puntos polémicos: tiene votos Y no es unánime
+// Inferir concejales por partido: máximo votos en cualquier punto individual
+const concejalesPorPartido: Record<string, number> = {};
+for (const votos of Object.values(votacionesPorPunto)) {
+  for (const v of votos) {
+    const total = v.votos_favor + v.votos_contra + v.abstenciones;
+    if (!concejalesPorPartido[v.siglas] || concejalesPorPartido[v.siglas] < total) {
+      concejalesPorPartido[v.siglas] = total;
+    }
+  }
+}
+const maxConcejales = Math.max(...Object.values(concejalesPorPartido), 1);
+const concejalesOrdenados = Object.entries(concejalesPorPartido).sort((a, b) => b[1] - a[1]);
+
+// Puntos polémicos (para stat card)
 const puntosControversia = puntos.filter((p) => {
   const v = votacionesPorPunto[p.id];
   return v && v.length > 0 && !p.unanimidad && (p.resultado === "aprobado" || p.resultado === "rechazado");
 });
 
-// Municipio info para breadcrumb
+// Municipio
 let municipioSlug   = "";
 let municipioNombre = pleno.municipio ?? "San Sebastián";
 if (meta?.municipio_id) {
@@ -62,7 +75,7 @@ if (meta?.municipio_id) {
   } catch {}
 }
 
-// ── Fechas ───────────────────────────────────────────────────────────────────
+// Fechas
 const fecha = new Date(pleno.fecha + "T12:00:00");
 const fechaLarga = fecha.toLocaleDateString("es-ES", {
   weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -71,12 +84,12 @@ const fechaCorta = fecha.toLocaleDateString("es-ES", {
   day: "numeric", month: "short", year: "numeric",
 });
 
-// ── Categorías únicas ─────────────────────────────────────────────────────────
+// Categorías únicas
 const categorias = [...new Set(
   puntos.map((p) => p.categoria).filter((c) => c && c !== "otro")
 )];
 
-// ── Puntos agrupados ──────────────────────────────────────────────────────────
+// Grupos de puntos
 const puntosUrgentes     = puntos.filter((p) => p.es_urgencia);
 const puntosResolutivos  = puntos.filter((p) => !p.es_urgencia && !["dar_cuenta","otro"].includes(p.tipo));
 const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta","otro"].includes(p.tipo));
@@ -122,7 +135,6 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
       </p>
     )}
 
-    <!-- Ficha rápida -->
     <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--color-ink-muted)]">
       {meta?.alcalde_nombre && <span>Preside: <strong class="text-[var(--color-ink)]">{meta.alcalde_nombre}</strong></span>}
       {meta?.hora_inicio && <span>Inicio: <strong class="text-[var(--color-ink)]">{String(meta.hora_inicio).slice(0,5)} h</strong></span>}
@@ -160,105 +172,90 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
     </div>
   </section>
 
-  <!-- ── POSICIÓN DE LOS PARTIDOS ──────────────────────────────────────── -->
-  {resumenPartidos.length > 0 && (
+  <!-- ── COMPOSICIÓN DEL PLENO ─────────────────────────────────────────── -->
+  {concejalesOrdenados.length > 0 && (
     <section class="mb-10">
       <div class="section-rule mb-4">
-        <span class="text-xs font-bold uppercase tracking-widest">Posición de los partidos en este pleno</span>
+        <span class="text-xs font-bold uppercase tracking-widest">Composición del pleno</span>
       </div>
 
-      <div class="border border-[var(--color-border)] bg-white overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-[var(--color-border)]">
-              <th class="text-left px-4 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold w-1/3">Partido</th>
-              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-green)] font-semibold">A favor</th>
-              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-red)] font-semibold">En contra</th>
-              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold">Abstención</th>
-              <th class="text-center px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold hidden sm:table-cell">Puntos votados</th>
-              <th class="text-left px-4 py-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-muted)] font-semibold hidden md:table-cell">Perfil</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resumenPartidos.map((p) => {
-              const total = p.favor + p.contra + p.abstenciones;
-              const pctFavor = total > 0 ? Math.round((p.favor / total) * 100) : 0;
-              const perfil = p.contra > p.favor
-                ? { label: "Principalmente en contra", cls: "text-[var(--color-red)]" }
-                : p.abstenciones > p.favor && p.abstenciones > p.contra
-                ? { label: "Se abstiene habitualmente", cls: "text-[var(--color-ink-muted)]" }
-                : pctFavor === 100
-                ? { label: "Vota siempre a favor", cls: "text-[var(--color-green)]" }
-                : { label: "Mayoritariamente a favor", cls: "text-[var(--color-green)]" };
-              return (
-                <tr class="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)]">
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-2">
-                      <span class="w-2.5 h-2.5 rounded-full shrink-0" style={`background: ${p.color_hex}`} />
-                      <span class="font-semibold">{p.siglas}</span>
-                      <span class="text-[var(--color-ink-muted)] text-xs hidden lg:inline truncate max-w-[160px]">{p.partido}</span>
-                    </div>
-                  </td>
-                  <td class="px-3 py-3 text-center">
-                    <span class="font-bold text-[var(--color-green)]">{p.favor}</span>
-                  </td>
-                  <td class="px-3 py-3 text-center">
-                    <span class:list={["font-bold", p.contra > 0 ? "text-[var(--color-red)]" : "text-[var(--color-ink-subtle)]"]}>
-                      {p.contra > 0 ? p.contra : "—"}
-                    </span>
-                  </td>
-                  <td class="px-3 py-3 text-center">
-                    <span class:list={["font-bold", p.abstenciones > 0 ? "text-[var(--color-amber)]" : "text-[var(--color-ink-subtle)]"]}>
-                      {p.abstenciones > 0 ? p.abstenciones : "—"}
-                    </span>
-                  </td>
-                  <td class="px-3 py-3 text-center text-[var(--color-ink-muted)] hidden sm:table-cell">
-                    {p.nPuntos}
-                  </td>
-                  <td class="px-4 py-3 hidden md:table-cell">
-                    <span class:list={["text-xs", perfil.cls]}>{perfil.label}</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Puntos polémicos */}
-      {puntosControversia.length > 0 && (
-        <div class="mt-4 p-4 border border-[var(--color-border)] bg-white">
-          <p class="text-xs font-bold uppercase tracking-widest text-[var(--color-ink-muted)] mb-3">
-            Puntos con votación dividida ({puntosControversia.length})
-          </p>
-          <div class="space-y-2">
-            {puntosControversia.map((p) => (
-              <div class="flex items-start gap-3 text-sm">
-                <span class="font-mono text-xs text-[var(--color-ink-subtle)] shrink-0 mt-0.5 w-5">{p.numero}.</span>
-                <span class="flex-1 leading-snug text-[var(--color-ink)]">{p.titulo}</span>
-                <span class:list={[
-                  "shrink-0 text-xs font-semibold",
-                  p.resultado === "aprobado" ? "text-[var(--color-green)]" : "text-[var(--color-red)]"
-                ]}>
-                  {RESULTADO_LABEL[p.resultado]}
-                </span>
+      <div class="bg-white border border-[var(--color-border)] p-5">
+        <div class="space-y-3 mb-4">
+          {concejalesOrdenados.map(([siglas, n]) => {
+            const p = resumenPartidos.find(r => r.siglas === siglas);
+            if (!p) return null;
+            const barPct = Math.round((n / maxConcejales) * 100);
+            const totalVotos = p.favor + p.contra + p.abstenciones;
+            const pctFavor  = totalVotos > 0 ? (p.favor  / totalVotos) * 100 : 0;
+            const pctContra = totalVotos > 0 ? (p.contra / totalVotos) * 100 : 0;
+            const pctAbst   = totalVotos > 0 ? (p.abstenciones / totalVotos) * 100 : 0;
+            const comportamiento =
+              totalVotos === 0    ? null :
+              pctFavor  === 100   ? "Siempre a favor" :
+              pctContra === 100   ? "Siempre en contra" :
+              pctAbst   >= 80     ? "Mayoritariamente abstención" :
+              pctFavor  >= 60     ? `${Math.round(pctFavor)}% a favor` :
+              pctContra >= 60     ? `${Math.round(pctContra)}% en contra` :
+                                    `${Math.round(pctFavor)}% a favor`;
+            const compColor =
+              !comportamiento         ? "" :
+              pctFavor  > pctContra   ? "text-[var(--color-green)]" :
+              pctContra > pctFavor    ? "text-[var(--color-red)]"   :
+                                        "text-[var(--color-amber)]";
+            return (
+              <div class="flex items-center gap-3">
+                <div class="w-24 sm:w-32 shrink-0 flex items-center gap-2 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" style={`background: ${p.color_hex}`} />
+                  <span class="text-sm font-semibold truncate" title={p.partido}>{siglas}</span>
+                </div>
+                <div class="flex-1 h-4 bg-[var(--color-bg)] rounded-sm overflow-hidden">
+                  <div class="h-full flex rounded-sm overflow-hidden" style={`width: ${barPct}%`}>
+                    {pctFavor  > 0 && <div style={`flex: ${pctFavor};  background: var(--color-green);`} class="h-full" />}
+                    {pctContra > 0 && <div style={`flex: ${pctContra}; background: var(--color-red);`}   class="h-full" />}
+                    {pctAbst   > 0 && <div style={`flex: ${pctAbst};   background: var(--color-amber);`} class="h-full" />}
+                    {totalVotos === 0 && <div style={`background: ${p.color_hex}; opacity: 0.25;`} class="h-full flex-1" />}
+                  </div>
+                </div>
+                <span class="text-sm font-bold w-5 text-right shrink-0">{n}</span>
+                {comportamiento && (
+                  <span class:list={["text-[10px] hidden sm:block w-36 shrink-0", compColor]}>
+                    {comportamiento}
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      )}
+
+        <div class="pt-3 border-t border-[var(--color-border)] flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[var(--color-ink-muted)]">
+          {(meta?.n_asistentes ?? 0) > 0 && (
+            <span><strong class="text-[var(--color-ink)]">{meta!.n_asistentes}</strong> concejales presentes</span>
+          )}
+          <span><strong class="text-[var(--color-ink)]">{concejalesOrdenados.length}</strong> {concejalesOrdenados.length === 1 ? "partido" : "partidos"} con votaciones</span>
+          <span class="ml-auto hidden sm:flex items-center gap-3 text-[9px]">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background:var(--color-green)"/>A favor</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background:var(--color-red)"/>En contra</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background:var(--color-amber)"/>Abstención</span>
+          </span>
+        </div>
+      </div>
     </section>
   )}
 
-  <!-- ── TEMAS TRATADOS ─────────────────────────────────────────────────── -->
+  <!-- ── FILTRO POR TEMAS ───────────────────────────────────────────────── -->
   {categorias.length > 0 && (
-    <div class="flex flex-wrap gap-2 mb-10">
+    <div class="flex flex-wrap gap-2 mb-10 items-center">
       {categorias.map((cat) => (
-        <a href={`/temas/${cat}`}
-           class:list={["badge hover:opacity-75 transition-opacity", `badge-${cat}`]}>
+        <button
+          data-filter-cat={cat}
+          class:list={["cat-btn badge hover:opacity-75 transition-opacity cursor-pointer", `badge-${cat}`]}
+        >
           {CATEGORIAS[cat] ?? cat}
-        </a>
+        </button>
       ))}
+      <button id="cat-reset" hidden class="badge bg-[var(--color-bg)] text-[var(--color-ink-muted)] hover:opacity-75 transition-opacity cursor-pointer">
+        × Limpiar filtro
+      </button>
     </div>
   )}
 
@@ -280,8 +277,13 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
         <!-- Urgencias -->
         {puntosUrgentes.map((p) => {
           const votos = votacionesPorPunto[p.id] ?? [];
+          const tieneVotos = votos.length > 0;
+          const totFavor  = votos.reduce((s: number, v: any) => s + v.votos_favor,  0);
+          const totContra = votos.reduce((s: number, v: any) => s + v.votos_contra, 0);
+          const totAbst   = votos.reduce((s: number, v: any) => s + v.abstenciones, 0);
           return (
-            <div class="border border-[var(--color-amber)] bg-[var(--color-amber-bg)] rounded-[var(--radius)] p-5">
+            <div class="punto-card border border-[var(--color-amber)] bg-[var(--color-amber-bg)] rounded-[var(--radius)] p-5"
+                 data-cat={p.categoria ?? "otro"}>
               <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
                 <div class="flex-1 min-w-0">
                   <div class="flex flex-wrap gap-2 mb-2">
@@ -294,21 +296,53 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
                     </span>
                   </div>
                   <p class="font-serif font-semibold text-base leading-snug mb-2">{p.titulo}</p>
-                  {p.resumen_ia ? (
-                    <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">{p.resumen_ia}</p>
-                  ) : p.texto_completo ? (
+                  {(p.resumen_ia || p.texto_completo) && (
                     <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">
-                      {p.texto_completo.replace(/\s+/g, " ").trim().slice(0, 320)}{p.texto_completo.length > 320 ? "…" : ""}
+                      {p.resumen_ia ?? p.texto_completo?.replace(/\s+/g, " ").trim().slice(0, 320) + (p.texto_completo?.length > 320 ? "…" : "")}
                     </p>
-                  ) : null}
-                  {votos.length > 0 && (
-                    <VotacionDetalle votos={votos} unanimidad={p.unanimidad} />
                   )}
                 </div>
                 <div class="shrink-0 text-right">
-                  <ResultadoBadge resultado={p.resultado} unanimidad={p.unanimidad} />
+                  {p.resultado === "aprobado" && (
+                    <span class="inline-block px-2 py-0.5 text-xs font-bold rounded" style="background: var(--color-green-bg); color: var(--color-green);">
+                      Aprobado{p.unanimidad ? " · unanimidad" : ""}
+                    </span>
+                  )}
+                  {p.resultado === "rechazado" && (
+                    <span class="inline-block px-2 py-0.5 text-xs font-bold rounded" style="background: var(--color-red-bg); color: var(--color-red);">Rechazado</span>
+                  )}
+                  {!["aprobado","rechazado"].includes(p.resultado) && (
+                    <span class="text-xs text-[var(--color-ink-muted)]">{RESULTADO_LABEL[p.resultado] ?? p.resultado}</span>
+                  )}
                 </div>
               </div>
+              {tieneVotos && (
+                <details class="vote-box mt-3 border-t border-[var(--color-border)] pt-3">
+                  <summary class="vote-summary flex items-center gap-2 cursor-pointer list-none text-xs text-[var(--color-ink-muted)] select-none">
+                    <span class="vote-chevron inline-block transition-transform">▸</span>
+                    <span>Ver votación — {totFavor} a favor{totContra > 0 ? ` · ${totContra} en contra` : ""}{totAbst > 0 ? ` · ${totAbst} abstenciones` : ""}</span>
+                  </summary>
+                  <div class="pt-3 space-y-2">
+                    {votos.map((v: any) => {
+                      const total = v.votos_favor + v.votos_contra + v.abstenciones;
+                      return (
+                        <div class="flex items-center gap-3 text-xs">
+                          <div class="flex items-center gap-1.5 w-28 shrink-0">
+                            <span class="w-2 h-2 rounded-full shrink-0" style={`background: ${v.color_hex}`} />
+                            <span class="font-semibold truncate">{v.siglas}</span>
+                          </div>
+                          <div class="flex-1 flex gap-0.5 h-5 rounded overflow-hidden bg-[var(--color-bg)]">
+                            {v.votos_favor  > 0 && <div class="flex items-center justify-center text-[10px] font-bold text-white" style={`flex: ${v.votos_favor};  background: var(--color-green); min-width: 20px;`}>{v.votos_favor}</div>}
+                            {v.votos_contra > 0 && <div class="flex items-center justify-center text-[10px] font-bold text-white" style={`flex: ${v.votos_contra}; background: var(--color-red);   min-width: 20px;`}>{v.votos_contra}</div>}
+                            {v.abstenciones > 0 && <div class="flex items-center justify-center text-[10px] font-bold text-white" style={`flex: ${v.abstenciones}; background: var(--color-amber); min-width: 20px;`}>{v.abstenciones}</div>}
+                            {total === 0       && <div class="flex-1 flex items-center justify-center text-[10px] text-[var(--color-ink-subtle)]">—</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
             </div>
           );
         })}
@@ -324,132 +358,62 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
             {puntosResolutivos.map((p) => {
               const votos = votacionesPorPunto[p.id] ?? [];
               const esPolemico = votos.length > 0 && !p.unanimidad && (p.resultado === "aprobado" || p.resultado === "rechazado");
+              const tieneVotos = votos.length > 0;
+              const totFavor  = votos.reduce((s: number, v: any) => s + v.votos_favor,  0);
+              const totContra = votos.reduce((s: number, v: any) => s + v.votos_contra, 0);
+              const totAbst   = votos.reduce((s: number, v: any) => s + v.abstenciones, 0);
               return (
-                <div class:list={[
-                  "border bg-white rounded-[var(--radius)] p-5 mb-3",
-                  esPolemico
-                    ? "border-[var(--color-amber)]"
-                    : (p.relevancia_social ?? 0) >= 4
-                    ? "border-l-4 border-l-[var(--color-accent)] border-[var(--color-border)]"
-                    : "border-[var(--color-border)]",
-                ]}>
-                  <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
+                <div
+                  class:list={[
+                    "punto-card border bg-white rounded-[var(--radius)] mb-3 p-4",
+                    esPolemico
+                      ? "border-[var(--color-amber)]"
+                      : (p.relevancia_social ?? 0) >= 4
+                      ? "border-l-4 border-l-[var(--color-accent)] border-[var(--color-border)]"
+                      : "border-[var(--color-border)]",
+                  ]}
+                  data-cat={p.categoria ?? "otro"}
+                >
+                  <!-- Header siempre visible -->
+                  <div class="flex flex-wrap items-start gap-x-3 gap-y-1">
                     <span class="font-mono text-sm font-bold text-[var(--color-ink-subtle)] w-6 shrink-0 mt-0.5">
                       {p.numero}.
                     </span>
                     <div class="flex-1 min-w-0">
-                      <!-- Badges -->
-                      <div class="flex flex-wrap gap-2 mb-2">
+                      <div class="flex flex-wrap gap-1.5 mb-1.5">
                         {p.categoria !== "otro" && (
                           <span class:list={["badge", `badge-${p.categoria}`]}>{CATEGORIAS[p.categoria]}</span>
                         )}
                         <span class="text-[10px] uppercase tracking-wider text-[var(--color-ink-muted)] border border-[var(--color-border)] rounded px-1.5 py-0.5">
                           {TIPO_LABEL[p.tipo] ?? p.tipo}
                         </span>
-                        {(p.relevancia_social ?? 0) >= 4 && (
-                          <span class="flex items-center gap-1 text-[10px] text-[var(--color-accent)]">
-                            {Array.from({ length: p.relevancia_social ?? 0 }).map(() => (
-                              <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] inline-block" />
-                            ))}
-                            <span class="uppercase tracking-wide ml-0.5">Alta relevancia</span>
-                          </span>
-                        )}
                         {esPolemico && (
                           <span class="text-[10px] font-semibold uppercase tracking-wide" style="color: var(--color-amber);">
                             Votación dividida
                           </span>
                         )}
+                        {(p.relevancia_social ?? 0) >= 4 && (
+                          <span class="flex items-center gap-1 text-[10px] text-[var(--color-accent)]">
+                            {Array.from({ length: p.relevancia_social ?? 0 }).map(() => (
+                              <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] inline-block" />
+                            ))}
+                          </span>
+                        )}
                       </div>
-
-                      <!-- Título -->
-                      <p class="font-serif font-semibold text-base leading-snug">{p.titulo}</p>
-
-                      <!-- Resumen / descripción -->
-                      {p.resumen_ia ? (
-                        <p class="text-sm text-[var(--color-ink-muted)] mt-2 leading-relaxed">{p.resumen_ia}</p>
-                      ) : p.texto_completo ? (
-                        <p class="text-sm text-[var(--color-ink-muted)] mt-2 leading-relaxed">
-                          {p.texto_completo.replace(/\s+/g, " ").trim().slice(0, 320)}{p.texto_completo.length > 320 ? "…" : ""}
-                        </p>
-                      ) : null}
-
-                      <!-- Votaciones por partido -->
-                      {votos.length > 0 && (
-                        <div class="mt-4 pt-3 border-t border-[var(--color-border)]">
-                          <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--color-ink-muted)] mb-3">
-                            Desglose de votos
-                          </p>
-                          <div class="overflow-x-auto">
-                            <table class="text-xs w-full">
-                              <thead>
-                                <tr class="text-[var(--color-ink-muted)]">
-                                  <th class="text-left pb-1 pr-4 font-semibold uppercase tracking-wider text-[10px]">Partido</th>
-                                  <th class="text-center pb-1 px-3 font-semibold uppercase tracking-wider text-[10px] text-[var(--color-green)]">A favor</th>
-                                  <th class="text-center pb-1 px-3 font-semibold uppercase tracking-wider text-[10px] text-[var(--color-red)]">En contra</th>
-                                  <th class="text-center pb-1 px-3 font-semibold uppercase tracking-wider text-[10px] text-[var(--color-amber)]">Abstención</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {votos.map((v) => (
-                                  <tr class="border-t border-[var(--color-border)]">
-                                    <td class="py-2 pr-4">
-                                      <div class="flex items-center gap-2">
-                                        <span class="w-2 h-2 rounded-full shrink-0" style={`background: ${v.color_hex}`} />
-                                        <span class="font-semibold">{v.siglas}</span>
-                                      </div>
-                                    </td>
-                                    <td class="py-2 px-3 text-center">
-                                      {v.votos_favor > 0
-                                        ? <span class="font-bold text-[var(--color-green)]">{v.votos_favor}</span>
-                                        : <span class="text-[var(--color-ink-subtle)]">—</span>}
-                                    </td>
-                                    <td class="py-2 px-3 text-center">
-                                      {v.votos_contra > 0
-                                        ? <span class="font-bold text-[var(--color-red)]">{v.votos_contra}</span>
-                                        : <span class="text-[var(--color-ink-subtle)]">—</span>}
-                                    </td>
-                                    <td class="py-2 px-3 text-center">
-                                      {v.abstenciones > 0
-                                        ? <span class="font-bold text-[var(--color-amber)]">{v.abstenciones}</span>
-                                        : <span class="text-[var(--color-ink-subtle)]">—</span>}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              <!-- Totales -->
-                              {votos.length > 1 && (() => {
-                                const totFavor = votos.reduce((s, v) => s + v.votos_favor, 0);
-                                const totContra = votos.reduce((s, v) => s + v.votos_contra, 0);
-                                const totAbst  = votos.reduce((s, v) => s + v.abstenciones, 0);
-                                return (
-                                  <tfoot>
-                                    <tr class="border-t-2 border-[var(--color-border-strong)] bg-[var(--color-bg)]">
-                                      <td class="py-1.5 pr-4 text-[10px] font-bold uppercase tracking-wider text-[var(--color-ink-muted)]">Total</td>
-                                      <td class="py-1.5 px-3 text-center font-bold text-[var(--color-green)]">{totFavor}</td>
-                                      <td class="py-1.5 px-3 text-center font-bold text-[var(--color-red)]">{totContra > 0 ? totContra : "—"}</td>
-                                      <td class="py-1.5 px-3 text-center font-bold text-[var(--color-amber)]">{totAbst > 0 ? totAbst : "—"}</td>
-                                    </tr>
-                                  </tfoot>
-                                );
-                              })()}
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Sin votos pero aprobado/rechazado */}
-                      {votos.length === 0 && (p.resultado === "aprobado" || p.resultado === "rechazado") && (
-                        <p class="text-xs text-[var(--color-ink-subtle)] mt-3 italic">
-                          {p.unanimidad ? "Aprobado por unanimidad sin detalle de votos registrado." : "Sin desglose de votos disponible."}
+                      <!-- Título completo -->
+                      <p class="font-serif font-semibold text-[0.9375rem] leading-snug mb-1.5">{p.titulo}</p>
+                      <!-- Descripción siempre visible -->
+                      {(p.resumen_ia || p.texto_completo) && (
+                        <p class="text-sm text-[var(--color-ink-muted)] leading-relaxed">
+                          {p.resumen_ia ?? p.texto_completo?.replace(/\s+/g, " ").trim().slice(0, 280) + (p.texto_completo?.length > 280 ? "…" : "")}
                         </p>
                       )}
                     </div>
-
-                    <!-- Resultado -->
-                    <div class="shrink-0 mt-0.5 text-right min-w-[72px]">
+                    <!-- Resultado badge -->
+                    <div class="shrink-0 mt-0.5">
                       {p.resultado === "aprobado" && (
                         <span class="inline-block px-2 py-0.5 text-xs font-bold rounded" style="background: var(--color-green-bg); color: var(--color-green);">
-                          Aprobado
+                          Aprobado{p.unanimidad ? " · unanimidad" : ""}
                         </span>
                       )}
                       {p.resultado === "rechazado" && (
@@ -462,23 +426,59 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
                           {RESULTADO_LABEL[p.resultado] ?? p.resultado}
                         </span>
                       )}
-                      {p.unanimidad === true && (
-                        <p class="text-[10px] text-[var(--color-ink-subtle)] mt-0.5">unanimidad</p>
-                      )}
-                      {p.unanimidad === false && (
-                        <p class="text-[10px] text-[var(--color-ink-subtle)] mt-0.5">mayoría</p>
-                      )}
                     </div>
                   </div>
+
+                  <!-- Votación: expandible -->
+                  {tieneVotos && (
+                    <details class="vote-box mt-3 border-t border-[var(--color-border)] pt-3">
+                      <summary class="vote-summary flex items-center gap-2 cursor-pointer list-none text-xs text-[var(--color-ink-muted)] select-none">
+                        <span class="vote-chevron inline-block transition-transform">▸</span>
+                        <span>Ver votación — {totFavor} a favor{totContra > 0 ? ` · ${totContra} en contra` : ""}{totAbst > 0 ? ` · ${totAbst} abstenciones` : ""}</span>
+                      </summary>
+                      <div class="pt-3 space-y-2">
+                        {votos.map((v: any) => {
+                          const total = v.votos_favor + v.votos_contra + v.abstenciones;
+                          return (
+                            <div class="flex items-center gap-3 text-xs">
+                              <div class="flex items-center gap-1.5 w-28 shrink-0">
+                                <span class="w-2 h-2 rounded-full shrink-0" style={`background: ${v.color_hex}`} />
+                                <span class="font-semibold truncate">{v.siglas}</span>
+                              </div>
+                              <div class="flex-1 flex gap-0.5 h-5 rounded overflow-hidden bg-[var(--color-bg)]">
+                                {v.votos_favor  > 0 && <div class="flex items-center justify-center text-[10px] font-bold text-white" style={`flex: ${v.votos_favor};  background: var(--color-green); min-width: 20px;`}>{v.votos_favor}</div>}
+                                {v.votos_contra > 0 && <div class="flex items-center justify-center text-[10px] font-bold text-white" style={`flex: ${v.votos_contra}; background: var(--color-red);   min-width: 20px;`}>{v.votos_contra}</div>}
+                                {v.abstenciones > 0 && <div class="flex items-center justify-center text-[10px] font-bold text-white" style={`flex: ${v.abstenciones}; background: var(--color-amber); min-width: 20px;`}>{v.abstenciones}</div>}
+                                {total === 0       && <div class="flex-1 flex items-center justify-center text-[10px] text-[var(--color-ink-subtle)]">—</div>}
+                              </div>
+                              <div class="flex gap-2 shrink-0 text-[10px] text-right w-20 justify-end">
+                                {v.votos_favor  > 0 && <span class="text-[var(--color-green)]">{v.votos_favor}✓</span>}
+                                {v.votos_contra > 0 && <span class="text-[var(--color-red)]">{v.votos_contra}✗</span>}
+                                {v.abstenciones > 0 && <span class="text-[var(--color-amber)]">{v.abstenciones}~</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {!tieneVotos && (p.resultado === "aprobado" || p.resultado === "rechazado") && (
+                          <p class="text-xs text-[var(--color-ink-subtle)] italic">
+                            {p.unanimidad ? "Aprobado por unanimidad." : "Sin desglose de votos disponible."}
+                          </p>
+                        )}
+                      </div>
+                    </details>
+                  )}
+                  {!tieneVotos && p.unanimidad && (
+                    <p class="text-xs text-[var(--color-ink-subtle)] mt-2 pl-9">Aprobado por unanimidad.</p>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        <!-- Puntos informativos (dar cuenta) colapsable -->
+        <!-- Informes y comunicaciones -->
         {puntosInformativos.length > 0 && (
-          <details class="group mt-4">
+          <details id="informes-section" class="group mt-4">
             <summary class="section-rule mb-0 cursor-pointer list-none flex items-center justify-between py-2">
               <span class="text-xs font-bold uppercase tracking-widest">
                 Informes y comunicaciones ({puntosInformativos.length})
@@ -488,15 +488,20 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
             </summary>
             <div class="mt-3 space-y-2">
               {puntosInformativos.map((p) => (
-                <div class="border border-[var(--color-border)] bg-white rounded-[var(--radius)] px-5 py-3 flex items-start gap-4">
+                <div
+                  class="punto-card border border-[var(--color-border)] bg-white rounded-[var(--radius)] px-5 py-3 flex items-start gap-4"
+                  data-cat={p.categoria ?? "otro"}
+                >
                   <span class="font-mono text-xs text-[var(--color-ink-muted)] shrink-0 mt-0.5 w-5">{p.numero}.</span>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium leading-snug">{p.titulo}</p>
-                    {p.resumen_ia && (
-                      <p class="text-xs text-[var(--color-ink-muted)] mt-1 leading-relaxed">{p.resumen_ia}</p>
+                    <p class="text-sm font-semibold leading-snug mb-1">{p.titulo}</p>
+                    {(p.resumen_ia || p.texto_completo) && (
+                      <p class="text-xs text-[var(--color-ink-muted)] leading-relaxed mb-1.5">
+                        {p.resumen_ia ?? p.texto_completo?.replace(/\s+/g, " ").trim().slice(0, 220) + (p.texto_completo?.length > 220 ? "…" : "")}
+                      </p>
                     )}
                     {p.categoria && p.categoria !== "otro" && (
-                      <span class:list={["badge mt-1.5", `badge-${p.categoria}`]}>{CATEGORIAS[p.categoria]}</span>
+                      <span class:list={["badge mt-0.5", `badge-${p.categoria}`]}>{CATEGORIAS[p.categoria]}</span>
                     )}
                   </div>
                   <span class="text-xs text-[var(--color-ink-subtle)] shrink-0">Enterado</span>
@@ -505,6 +510,7 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
             </div>
           </details>
         )}
+
       </div>
     )}
   </section>
@@ -528,3 +534,74 @@ const puntosInformativos = puntos.filter((p) => !p.es_urgencia &&  ["dar_cuenta"
   </div>
 
 </Base>
+
+<style>
+  .vote-box[open] .vote-chevron { transform: rotate(90deg); }
+  .cat-btn.is-active { outline: 2px solid currentColor; outline-offset: 2px; }
+</style>
+
+<script>
+  // ── Filtro por categoría ──────────────────────────────────────────────────
+  const activeFilters = new Set<string>();
+  const resetBtn = document.getElementById("cat-reset") as HTMLButtonElement | null;
+  const informesSection = document.getElementById("informes-section") as HTMLDetailsElement | null;
+
+  document.querySelectorAll<HTMLButtonElement>("[data-filter-cat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cat = btn.dataset.filterCat!;
+      if (activeFilters.has(cat)) {
+        activeFilters.delete(cat);
+        btn.classList.remove("is-active");
+      } else {
+        activeFilters.add(cat);
+        btn.classList.add("is-active");
+      }
+      applyFilter();
+    });
+  });
+
+  resetBtn?.addEventListener("click", () => {
+    activeFilters.clear();
+    document.querySelectorAll<HTMLButtonElement>("[data-filter-cat]").forEach((b) => b.classList.remove("is-active"));
+    applyFilter();
+  });
+
+  function applyFilter() {
+    const cards = document.querySelectorAll<HTMLElement>(".punto-card");
+
+    if (activeFilters.size === 0) {
+      cards.forEach((c) => c.removeAttribute("hidden"));
+      resetBtn?.setAttribute("hidden", "");
+      return;
+    }
+
+    resetBtn?.removeAttribute("hidden");
+    let hasInfoMatch = false;
+
+    cards.forEach((card) => {
+      const cat = card.dataset.cat ?? "";
+      const matches = activeFilters.has(cat);
+      if (matches) {
+        card.removeAttribute("hidden");
+        if (card.closest("#informes-section")) hasInfoMatch = true;
+      } else {
+        card.setAttribute("hidden", "");
+      }
+    });
+
+    // Abrir sección de informes automáticamente si hay coincidencias
+    if (informesSection && hasInfoMatch) {
+      informesSection.open = true;
+    }
+  }
+
+  // ── Chevron en details de votación ───────────────────────────────────────
+  document.querySelectorAll<HTMLDetailsElement>(".vote-box").forEach((details) => {
+    details.addEventListener("toggle", () => {
+      const chevron = details.querySelector(".vote-chevron");
+      if (chevron) {
+        (chevron as HTMLElement).style.transform = details.open ? "rotate(90deg)" : "";
+      }
+    });
+  });
+</script>

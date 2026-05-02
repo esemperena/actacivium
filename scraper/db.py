@@ -28,6 +28,22 @@ def acta_ya_existe(municipio_id: str, numero_acta: int) -> bool:
     return len(res.data) > 0
 
 
+def eliminar_pleno(municipio_id: str, numero_acta: int):
+    res = (
+        get_client()
+        .table("plenos")
+        .select("id")
+        .eq("municipio_id", municipio_id)
+        .eq("numero_acta", numero_acta)
+        .execute()
+    )
+    for row in res.data:
+        pleno_id = row["id"]
+        get_client().table("puntos").delete().eq("pleno_id", pleno_id).execute()
+        # votaciones se eliminan en cascada via puntos (punto_id FK)
+        get_client().table("plenos").delete().eq("id", pleno_id).execute()
+
+
 def insertar_pleno(datos: dict) -> str:
     res = get_client().table("plenos").insert(datos).execute()
     return res.data[0]["id"]
@@ -47,16 +63,13 @@ def insertar_votacion(datos: dict):
 
 
 def get_partido_id(municipio_id: str, siglas: str) -> str | None:
-    res = (
-        get_client()
-        .table("partidos")
-        .select("id")
-        .eq("municipio_id", municipio_id)
-        .ilike("siglas", f"%{siglas}%")
-        .execute()
-    )
-    if res.data:
-        return res.data[0]["id"]
+    """Matching bidireccional: 'ELKARREKIN DONOSTIA' encuentra 'Elkarrekin'."""
+    res = get_client().table("partidos").select("id, siglas").eq("municipio_id", municipio_id).execute()
+    siglas_up = siglas.upper().strip()
+    for row in res.data:
+        db_up = row["siglas"].upper().strip()
+        if db_up in siglas_up or siglas_up in db_up:
+            return row["id"]
     return None
 
 

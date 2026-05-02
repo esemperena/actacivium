@@ -4,16 +4,15 @@ Web: https://www.donostia.eus (IBM Lotus Notes / Domino — HTML estático)
 """
 import re
 import httpx
-import time
 from pathlib import Path
 from dataclasses import dataclass
-from scrapling import Fetcher
+from bs4 import BeautifulSoup
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 BASE_URL = "https://www.donostia.eus"
 LISTING_URL = (
     "https://www.donostia.eus/secretaria/AsuntosPleno.nsf"
-    "/fwListadoAnio?ReadForm&idioma=cas&id=C511345"
+    "/fwHistorico?ReadForm&id=C511345&idioma=cas"
 )
 
 HEADERS = {
@@ -34,9 +33,10 @@ class ActaRef:
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def _fetch(url: str) -> str:
     """Fetcher HTTP ligero con reintentos automáticos."""
-    fetcher = Fetcher(auto_match=False)
-    page = fetcher.get(url, headers=HEADERS, follow_redirects=True)
-    return page.html_content
+    r = httpx.get(url, headers=HEADERS, follow_redirects=True, timeout=30)
+    r.raise_for_status()
+    encoding = r.encoding or "iso-8859-1"
+    return r.content.decode(encoding, errors="replace")
 
 
 def obtener_actas_disponibles() -> list[ActaRef]:
@@ -45,24 +45,19 @@ def obtener_actas_disponibles() -> list[ActaRef]:
     todas las referencias a PDFs disponibles.
     """
     html = _fetch(LISTING_URL)
-
-    fetcher = Fetcher(auto_match=False)
-    # Scrapling puede parsear HTML directamente desde string
-    from scrapling import HTMLParser
-    page = HTMLParser(html)
+    soup = BeautifulSoup(html, "html.parser")
 
     actas: list[ActaRef] = []
 
-    # Los links a PDFs siguen el patrón $file/acYYYYMMDD-XX...pdf
-    for link in page.css("a[href*='$file']"):
-        href = link.attrib.get("href", "")
-        if not href.lower().endswith(".pdf"):
+    for link in soup.find_all("a", href=True):
+        href = link["href"]
+        if "$file" not in href or not href.lower().endswith(".pdf"):
             continue
 
         url_pdf = href if href.startswith("http") else BASE_URL + href
         nombre_pdf = Path(href).name
 
-        info = _parsear_nombre_pdf(nombre_pdf, link.text or "")
+        info = _parsear_nombre_pdf(nombre_pdf, link.get_text() or "")
         if info:
             actas.append(ActaRef(
                 numero_acta=info["numero"],

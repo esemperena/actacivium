@@ -94,93 +94,221 @@ def extraer_asistentes(texto: str) -> tuple[list[str], list[str]]:
 
 def extraer_puntos_sumario(texto: str) -> list[dict]:
     """
-    Extrae los puntos del sumario (índice).
+    Extrae los puntos del orden del día desde el sumario del acta.
+    El layout bilingüe intercala Basque y castellano en cada línea.
+    Patrón en el sumario: "euskera_text NUM spanish_text [PAGE]"
     Devuelve lista de {numero, titulo, pagina}.
     """
+    # Acota el bloque del sumario
+    m_inicio = re.search(r"\bSUMARIO\b", texto, re.IGNORECASE)
+    if not m_inicio:
+        return []
+    m_fin = re.search(r"-{3,}|DONOSTIAKO UDALBATZAR|SE DECLARA ABIERTA", texto[m_inicio.end():])
+    fin = m_inicio.end() + m_fin.start() if m_fin else m_inicio.end() + 4000
+    bloque = texto[m_inicio.end(): fin]
+
+    vistos: set[int] = set()
     puntos = []
 
-    # El sumario está entre SUMARIO y la primera sección resolutiva
-    m = re.search(r"SUMARIO(.+?)(?:PARTE RESOLUTIVA|INFORMACIÓN, IMPULSO)", texto, re.DOTALL)
-    if not m:
+    # Caso especial: sesión con un único punto ("Bakarra / Único")
+    m_unico = re.search(r"(?:Bakarra|[ÚU]nico)\s+([A-ZÁÉÍÓÚÑÜ][^\n]{5,})", bloque, re.I)
+    if m_unico:
+        titulo = re.sub(r"\s+\d{1,3}\s*$", "", m_unico.group(1)).strip()
+        puntos.append({"numero": 1, "titulo": _limpiar_titulo(titulo), "pagina": None})
         return puntos
 
-    bloque = m.group(1)
+    # Cada entrada tiene: "basque_text NUM spanish_text PAGE?" en una o varias líneas
+    # Buscamos el número como separador entre columnas bilingües
+    patron = re.compile(r"\b(\d{1,2})\s+([A-ZÁÉÍÓÚÑÜ][^\n]{5,})")
+    lineas = bloque.split("\n")
 
-    # Patrón: número + título en español + número de página
-    patron = re.compile(
-        r"(\d+)\s{2,}([A-ZÁÉÍÓÚÑÜ][^\d\n]{10,}?)\s{2,}(\d+)",
-        re.MULTILINE
-    )
-    for match in patron.finditer(bloque):
+    for i, linea in enumerate(lineas):
+        m = patron.search(linea)
+        if not m:
+            continue
+        num = int(m.group(1))
+        if num in vistos:
+            continue
+
+        # Título: texto castellano de esta línea (tras el número), sin el número de página final
+        titulo_base = re.sub(r"\s+\d{1,3}\s*$", "", m.group(2)).strip()
+
+        # Si el título termina con preposición/artículo, buscar continuación en líneas siguientes
+        _dangling = re.compile(r"\b(el|la|los|las|de|del|por|en|con|a|al|un|una)\s*$", re.I)
+        _new_entry = re.compile(r"\b\d{1,2}\s+[A-ZÁÉÍÓÚÑÜ]")  # nueva entrada del sumario
+        if _dangling.search(titulo_base):
+            for j in range(i + 1, min(i + 6, len(lineas))):
+                cont = lineas[j].strip()
+                if not cont:
+                    continue
+                # Parar si parece una nueva entrada del sumario
+                if _new_entry.search(cont):
+                    break
+                # Extraer sólo la parte castellana:
+                # 1) lo que va tras "basque_word. "
+                # 2) o lo que empieza por "Grupo " u otro marcador español conocido
+                parte_es = re.split(r"[a-záéíóúüñ]+\.\s+", cont, maxsplit=1)
+                segmento = parte_es[-1] if len(parte_es) > 1 else ""
+                if not segmento:
+                    m_grupo = re.search(r"\b(Grupo\s+\S+|sesión|polígono|movilidad|interoperabilidad|relativa|parcela|descuento|necesidades|Ayuntamiento|celebrada)", cont)
+                    if m_grupo:
+                        segmento = cont[m_grupo.start():]
+                # Validar que el segmento tiene contenido en castellano
+                if segmento and re.search(r"[áéíóúñÁÉÍÓÚÑ]|Grupo|relativa|parcela|relación|movilidad|interoperabilidad|descuento|necesidades|Ayuntamiento|sesión|celebrada|polígono", segmento):
+                    titulo_base = (titulo_base + " " + segmento.strip()).strip()
+                    if not _dangling.search(titulo_base):
+                        break
+
+        vistos.add(num)
         puntos.append({
-            "numero": int(match.group(1)),
-            "titulo": _limpiar_titulo(match.group(2)),
-            "pagina": int(match.group(3)),
+            "numero": num,
+            "titulo": _limpiar_titulo(titulo_base),
+            "pagina": None,
         })
 
-    return puntos
+    return sorted(puntos, key=lambda p: p["numero"])
 
 
 def _limpiar_titulo(titulo: str) -> str:
     return re.sub(r"\s+", " ", titulo).strip(" .,")
 
 
-def extraer_votaciones_texto(texto: str) -> list[dict]:
+def extraer_votaciones_por_punto(texto: str) -> dict[int, dict]:
     """
-    Busca todos los bloques 'RESULTADO DE LA VOTACIÓN' y extrae el resultado.
-    Devuelve lista de {resultado, unanimidad, detalle_raw}.
+    Devuelve {numero_punto: {resultado, unanimidad, partidos, total_abstenciones}}
+    asociando cada bloque de votación con el punto del orden del día que le precede.
+    Maneja el layout bilingüe (euskera + castellano) de las actas de Donostia.
     """
-    votaciones = []
-    patron = re.compile(
-        r"RESULTADO DE LA VOTACI[ÓO]N:\s*\n(.*?)(?=RESULTADO DE LA VOTACI[ÓO]N|---|\Z)",
-        re.DOTALL | re.IGNORECASE
-    )
-    for m in patron.finditer(texto):
-        bloque = m.group(1).strip()
-        entrada = {
-            "resultado": _parsear_resultado(bloque),
-            "unanimidad": "UNANIMIDAD" in bloque.upper() or "AHO BATEZ" in bloque.upper(),
-            "detalle_raw": bloque[:500],
-            "partidos": _parsear_votos_partido(bloque),
-        }
-        votaciones.append(entrada)
+    result: dict[int, dict] = {}
 
-    return votaciones
+    # Localizar los encabezados de punto en el cuerpo del acta: "N.-"
+    heading_pat = re.compile(r"\b(\d{1,2})\.-\s+[A-ZÁÉÍÓÚÑÜ]")
+    headings: list[tuple[int, int]] = []
+    seen_nums: set[int] = set()
+    for m in heading_pat.finditer(texto):
+        num = int(m.group(1))
+        if num not in seen_nums:
+            seen_nums.add(num)
+            headings.append((num, m.start()))
+
+    headings.append((0, len(texto)))  # centinela final
+
+    for i, (num, start) in enumerate(headings[:-1]):
+        section = texto[start: headings[i + 1][1]]
+        # Tomar el ÚLTIMO bloque de votación de la sección (tras enmiendas)
+        vote_starts = [m.start() for m in re.finditer(
+            r"RESULTADO DE LA VOTACI[ÓO]N:", section, re.IGNORECASE)]
+        if not vote_starts:
+            continue
+        vote_text = section[vote_starts[-1]:]
+        end = re.search(r"-{3,}", vote_text)
+        if end:
+            vote_text = vote_text[:end.start()]
+        vot = _parsear_bloque_votacion(vote_text)
+        if vot:
+            result[num] = vot
+
+    return result
 
 
-def _parsear_resultado(bloque: str) -> str:
-    bloque_up = bloque.upper()
-    if "APROBAD" in bloque_up or "ONARTU" in bloque_up:
-        return "aprobado"
-    if "RECHAZAD" in bloque_up or "EZETSID" in bloque_up:
-        return "rechazado"
-    if "ENTERADO" in bloque_up or "JAKINTZE" in bloque_up:
-        return "enterado"
-    if "RETIR" in bloque_up:
-        return "retirado"
-    return "sin_votacion"
+def _parsear_bloque_votacion(bloque: str) -> dict | None:
+    """
+    Parsea un bloque 'RESULTADO DE LA VOTACIÓN:...' en el formato Donostia.
+    El layout bilingüe duplica el contenido en cada línea; colapsamos y usamos
+    los marcadores en castellano (VOTOS A FAVOR, VOTOS EN CONTRA, ABSTENCIONES).
+    """
+    texto = " ".join(bloque.split())  # colapsar saltos de línea
+
+    resultado = "sin_votacion"
+    if re.search(r"APROBAD[AO]", texto, re.I):
+        resultado = "aprobado"
+    elif re.search(r"RECHAZAD[AO]|BAZTERTUA", texto, re.I):
+        resultado = "rechazado"
+    elif re.search(r"ENTERADO|JAKINEAN", texto, re.I):
+        resultado = "enterado"
+    elif re.search(r"RETIRAD[AO]", texto, re.I):
+        resultado = "retirado"
+
+    unanimidad = bool(re.search(r"UNANIMIDAD|AHO BATEZ", texto, re.I))
+
+    partidos: dict[str, dict] = {}  # siglas → {votos_favor, votos_contra, abstenciones}
+
+    # VOTOS A FAVOR
+    m = re.search(
+        r"VOTOS A FAVOR:\s*\d+\s*[-–]\s*(.+?)(?=VOTOS EN CONTRA:|AURKAKO BOTOAK:|ABSTENCIONES:|ABSTENTZIOAK:|$)",
+        texto, re.I)
+    if m:
+        _acumular_votos(m.group(1), "favor", partidos)
+
+    # VOTOS EN CONTRA
+    m = re.search(
+        r"VOTOS EN CONTRA:\s*\d+\s*[-–]\s*(.+?)(?=ABSTENCIONES:|ABSTENTZIOAK:|$)",
+        texto, re.I)
+    if m:
+        _acumular_votos(m.group(1), "contra", partidos)
+
+    # ABSTENCIONES (con o sin desglose por partido)
+    m_abst = re.search(r"ABSTENCIONES:\s*(\d+)", texto, re.I)
+    total_abst = int(m_abst.group(1)) if m_abst else 0
+    if total_abst > 0:
+        # Intentar extraer desglose: "3 – PP" o "(3) PP"
+        m_abst_detail = re.search(
+            r"ABSTENCIONES:\s*\d+\s*[-–]\s*(.+?)(?:\.|$)", texto, re.I)
+        if m_abst_detail:
+            _acumular_votos(m_abst_detail.group(1), "abstenciones", partidos)
+
+    if not partidos and resultado == "sin_votacion":
+        return None
+
+    return {
+        "resultado": resultado,
+        "unanimidad": unanimidad,
+        "partidos": partidos,
+        "total_abstenciones": total_abst,
+    }
 
 
-def _parsear_votos_partido(bloque: str) -> list[dict]:
-    """Extrae votos por partido cuando hay desglose explícito."""
-    partidos = []
-    # Patrón: "votos a favor de EAJ/PNV, PSE-EE"
-    favor = re.findall(r"(?:votos? a favor|aldeko bozkak?) de(?:l grupo)?s? ([A-ZÁÉÍÓÚÑÜ/,\s\-]+?)(?:y los|y el|$)", bloque, re.IGNORECASE)
-    contra = re.findall(r"(?:votos? en contra|aurkako bozkak?) de(?:l grupo)?s? ([A-ZÁÉÍÓÚÑÜ/,\s\-]+?)(?:y los|y el|\.|$)", bloque, re.IGNORECASE)
+def _acumular_votos(texto: str, posicion: str, partidos: dict):
+    """
+    Extrae votos por partido desde texto del tipo:
+      '(3) PP, (2) ELKARREKIN DONOSTIA'   → con paréntesis
+      'PP, EH BILDU'                        → sin paréntesis (abstenciones simples)
+    y acumula en el dict {siglas: {votos_favor, votos_contra, abstenciones}}.
+    """
+    seen: set[str] = set()
 
-    for grupo in favor:
-        for sigla in re.split(r",\s*|\s+y\s+", grupo):
-            sigla = sigla.strip()
-            if sigla:
-                partidos.append({"siglas": sigla, "posicion": "favor"})
+    # Formato con paréntesis: (N) PARTIDO
+    for m in re.finditer(
+            r"\((\d+)\)\s+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ/\-\. ]*?)(?=\s*,\s*\(|\s*[·.]|\s*$|\Z)",
+            texto):
+        votos = int(m.group(1))
+        siglas = _normalizar_siglas(m.group(2).strip())
+        if siglas and siglas not in seen:
+            seen.add(siglas)
+            _set_votos(partidos, siglas, posicion, votos)
 
-    for grupo in contra:
-        for sigla in re.split(r",\s*|\s+y\s+", grupo):
-            sigla = sigla.strip()
-            if sigla:
-                partidos.append({"siglas": sigla, "posicion": "contra"})
+    # Formato sin paréntesis (abstenciones): "N – PP" o solo "PP"
+    if not seen:
+        for m in re.finditer(r"([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ/\-\. ]{1,30}?)(?=\s*,|\s*\.|\s*$|\Z)", texto):
+            siglas = _normalizar_siglas(m.group(1).strip())
+            if siglas and siglas not in seen:
+                seen.add(siglas)
+                _set_votos(partidos, siglas, posicion, 1)  # sin número exacto
 
-    return partidos
+
+def _normalizar_siglas(s: str) -> str:
+    s = s.strip().rstrip(".,")
+    # "BILDU" → "EH BILDU" (artefacto del layout bilingüe que parte "EH\nBILDU")
+    if s == "BILDU":
+        return "EH BILDU"
+    return s if len(s) >= 2 else ""
+
+
+def _set_votos(partidos: dict, siglas: str, posicion: str, votos: int):
+    if siglas not in partidos:
+        partidos[siglas] = {"votos_favor": 0, "votos_contra": 0, "abstenciones": 0}
+    campo = {"favor": "votos_favor", "contra": "votos_contra", "abstenciones": "abstenciones"}[posicion]
+    partidos[siglas][campo] += votos
 
 
 # ── Clasificación temática ────────────────────────────────────────────────────

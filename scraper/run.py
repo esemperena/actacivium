@@ -24,7 +24,7 @@ from pdf_processor import (
     extraer_metadatos,
     extraer_asistentes,
     extraer_puntos_sumario,
-    extraer_votaciones_texto,
+    extraer_votaciones_por_punto,
     clasificar_categoria,
     clasificar_tipo,
     clasificar_comision,
@@ -81,6 +81,8 @@ def main():
     procesadas, errores = 0, 0
     for acta in actas_a_procesar:
         print(f"  [{acta.numero_acta}] {acta.fecha_str} ({acta.tipo})")
+        if args.reprocess:
+            db.eliminar_pleno(municipio_id, acta.numero_acta)
         exito = procesar_acta(acta, municipio_id, temp_dir)
         if exito:
             procesadas += 1
@@ -125,7 +127,9 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
         meta = extraer_metadatos(texto)
         asistentes, ausentes = extraer_asistentes(texto)
         puntos_sumario = extraer_puntos_sumario(texto)
-        print(f"OK ({len(texto):,} chars, {len(puntos_sumario)} puntos en sumario)")
+        votaciones_por_punto = extraer_votaciones_por_punto(texto)
+        n_con_votos = sum(1 for v in votaciones_por_punto.values() if v.get("partidos"))
+        print(f"OK ({len(texto):,} chars, {len(puntos_sumario)} puntos, {n_con_votos} con votos)")
 
         # ── Generar resumen con Claude CLI ────────────────────────────────────
         print(f"    ↳ Generando resumen con Claude...", end=" ", flush=True)
@@ -149,7 +153,7 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
         })
 
         # ── Insertar puntos del orden del día ─────────────────────────────────
-        _insertar_puntos(pleno_id, municipio_id, puntos_ia, puntos_sumario)
+        _insertar_puntos(pleno_id, municipio_id, puntos_ia, puntos_sumario, votaciones_por_punto)
 
         # ── Limpiar PDF temporal ──────────────────────────────────────────────
         pdf_path.unlink(missing_ok=True)
@@ -163,9 +167,9 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
         return False
 
 
-def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_ia: list, puntos_sumario: list):
-    """Inserta los puntos del orden del día en la BD."""
-    # Preferimos los datos enriquecidos de la IA; sumario como fallback
+def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_ia: list, puntos_sumario: list,
+                     votaciones_por_punto: dict):
+    """Inserta los puntos del orden del día y sus votaciones en la BD."""
     fuente = puntos_ia if puntos_ia else [
         {"numero": p["numero"], "titulo": p["titulo"],
          "categoria": clasificar_categoria(p["titulo"]),
@@ -177,19 +181,43 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_ia: list, puntos_s
     ]
 
     for p in fuente:
-        db.insertar_punto({
+        num = p.get("numero", 0)
+        vot = votaciones_por_punto.get(num, {})
+
+        # Si el scraper detectó resultado, tiene prioridad sobre la IA (más fiable)
+        resultado = vot.get("resultado") or p.get("resultado", "sin_votacion")
+        unanimidad = vot.get("unanimidad") if vot else p.get("unanimidad")
+
+        punto_id = db.insertar_punto({
             "pleno_id": pleno_id,
-            "numero": p.get("numero", 0),
+            "numero": num,
             "titulo": p.get("titulo", ""),
             "comision": p.get("comision", "otro"),
             "tipo": p.get("tipo", "otro"),
             "categoria": p.get("categoria", "otro"),
-            "resultado": p.get("resultado", "sin_votacion"),
-            "unanimidad": p.get("unanimidad"),
+            "resultado": resultado,
+            "unanimidad": unanimidad,
             "resumen_ia": p.get("resumen_ia"),
             "relevancia_social": p.get("relevancia_social"),
             "es_urgencia": p.get("es_urgencia", False),
         })
+
+        # ── Insertar votaciones por partido ───────────────────────────────────
+        partidos = vot.get("partidos", {})
+        for siglas, votos in partidos.items():
+            partido_id = db.get_partido_id(municipio_id, siglas)
+            if not partido_id:
+                continue
+            try:
+                db.insertar_votacion({
+                    "punto_id": punto_id,
+                    "partido_id": partido_id,
+                    "votos_favor": votos.get("votos_favor", 0),
+                    "votos_contra": votos.get("votos_contra", 0),
+                    "abstenciones": votos.get("abstenciones", 0),
+                })
+            except Exception:
+                pass  # unique constraint si ya existe
 
 
 def _mostrar_actas_nuevas(actas, municipio_id: str):
