@@ -16,7 +16,9 @@ from config import CLAUDE_CMD
 
 _BAD_RESUMEN = re.compile(
     r"no (has|veo|tienes|incluiste)|¿puedes pegarlo|pégalo|estoy listo|"
-    r"proporcion|no (se|se ha) inclui",
+    r"proporcion|no (se|se ha) inclui|parece que (has|no)|has compartido|"
+    r"puedes compartir|¿en qué puedo|contexto previo|título de (un|una|el)|"
+    r"¿puedes peg|pégalo aquí",
     re.I,
 )
 

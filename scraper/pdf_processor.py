@@ -452,29 +452,46 @@ TEXTO DEL ACTA (primeras {max_pages} páginas):
 """
 
 SYSTEM_RESUMEN_PUNTO = (
-    "Eres un redactor que resume puntos del orden del día de plenos municipales. "
-    "Escribe SIEMPRE 1-2 frases en español explicando qué se decidió y el impacto ciudadano. "
-    "Nunca hagas preguntas. El texto puede mezclar español y euskera; usa solo el español. "
-    "Si el texto es escaso, infiere del título y el resultado."
+    "Eres un redactor de Acta Civium, publicación ciudadana sobre plenos municipales. "
+    "Tu ÚNICA tarea es escribir un resumen de 1-2 frases en castellano explicando "
+    "qué se decidió y cuál es el impacto para la ciudadanía. "
+    "NUNCA hagas preguntas. NUNCA pidas más información. NUNCA expliques lo que vas a hacer. "
+    "Escribe DIRECTAMENTE el resumen como texto plano, sin preámbulos ni markdown. "
+    "Si el texto está en euskera o es escaso, infiere del título y el resultado de la votación."
 )
 
-PROMPT_RESUMEN_PUNTO = """Título: {titulo}
-Resultado de la votación: {resultado}
-Texto del acta: {texto}"""
+PROMPT_RESUMEN_PUNTO = """Genera un resumen de 1-2 frases de este punto del orden del día de un pleno municipal:
 
+Título: {titulo}
+Resultado: {resultado}
+Texto del acta: {texto}
+
+Escribe solo el resumen, sin introducción ni explicaciones."""
+
+
+SYSTEM_RESUMEN_PLENO = (
+    "Eres un redactor de Acta Civium, publicación ciudadana sobre plenos municipales. "
+    "Responde ÚNICAMENTE con el objeto JSON solicitado, sin texto adicional, sin markdown, "
+    "sin bloques de código. Solo el JSON puro empezando por { y terminando en }."
+)
 
 def generar_resumen_pleno(texto: str, max_pages: int = PDF_MAX_PAGES_FOR_SUMMARY) -> dict | None:
     """Llama a Claude CLI para generar el resumen estructurado del pleno."""
-    # Limitamos el texto para no exceder el contexto
     texto_recortado = _recortar_texto(texto, max_chars=120_000)
     prompt = PROMPT_RESUMEN_PLENO.format(texto=texto_recortado, max_pages=max_pages)
 
-    resultado = _llamar_claude(prompt)
+    resultado = _llamar_claude(prompt, system_prompt=SYSTEM_RESUMEN_PLENO)
     if not resultado:
         return None
 
     try:
-        # Claude puede devolver el JSON envuelto en markdown
+        # Intentar JSON directo primero
+        return json.loads(resultado)
+    except json.JSONDecodeError:
+        pass
+
+    try:
+        # Claude puede devolver el JSON envuelto en markdown (```json ... ```)
         json_str = re.search(r"\{.*\}", resultado, re.DOTALL)
         if json_str:
             return json.loads(json_str.group())
@@ -494,17 +511,26 @@ def generar_resumen_punto(titulo: str, resultado: str, texto: str) -> str | None
 
 
 def _llamar_claude(prompt: str, system_prompt: str | None = None) -> str | None:
-    """Ejecuta Claude CLI de forma no interactiva y devuelve la respuesta."""
-    cmd = [CLAUDE_CMD, "-p", prompt, "--output-format", "text"]
+    """Ejecuta Claude CLI de forma no interactiva y devuelve la respuesta.
+
+    El prompt se envía por stdin (no como argumento) para evitar problemas
+    con caracteres especiales y límites de longitud en Windows.
+    cwd=tempfile.gettempdir() evita que Claude cargue CLAUDE.md del proyecto.
+    """
+    import tempfile
+    # -p sin texto → lee el prompt de stdin
+    cmd = [CLAUDE_CMD, "-p", "--output-format", "text"]
     if system_prompt:
         cmd += ["--system-prompt", system_prompt]
     try:
         result = subprocess.run(
             cmd,
+            input=prompt,
             capture_output=True,
             text=True,
             timeout=120,
             encoding="utf-8",
+            cwd=tempfile.gettempdir(),
         )
         if result.returncode == 0:
             return result.stdout.strip()
