@@ -20,6 +20,8 @@
   --color-red-bg:       oklch(96% 0.025 22);
   --color-green:        oklch(40% 0.12 155);
   --color-green-bg:     oklch(96% 0.025 155);
+  --color-green-mid:    oklch(50% 0.12 155);
+  --color-red-mid:      oklch(54% 0.15 22);
   --color-amber:        oklch(60% 0.13 78);
   --color-amber-bg:     oklch(97% 0.02 78);
 
