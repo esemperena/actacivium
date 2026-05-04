@@ -111,11 +111,9 @@ def procesar_pdf_local(pdf_path: Path, info: dict, municipio_id: str) -> bool:
         n_con_votos = sum(1 for v in votaciones_por_punto.values() if v.get("partidos"))
         print(f"OK ({len(texto):,} chars, {len(puntos_sumario)} puntos, {n_con_votos} con votos)")
 
-        print(f"    ↳ Generando resumen con Claude...", end=" ", flush=True)
-        resumen_data = generar_resumen_pleno(texto)
-        resumen_pleno = resumen_data.get("resumen_pleno", "") if resumen_data else ""
-        puntos_ia = resumen_data.get("puntos", []) if resumen_data else []
-        print(f"OK ({len(puntos_ia)} puntos clasificados)")
+        print(f"    ↳ Generando resumen del pleno...", end=" ", flush=True)
+        resumen_pleno = generar_resumen_pleno(texto) or ""
+        print(f"OK ({len(resumen_pleno)} chars)")
 
         db.actualizar_pleno(pleno_id, {
             "alcalde_nombre": meta.get("alcalde_nombre"),
@@ -123,14 +121,15 @@ def procesar_pdf_local(pdf_path: Path, info: dict, municipio_id: str) -> bool:
             "hora_inicio": meta.get("hora_inicio"),
             "texto_completo": texto,
             "resumen_ia": resumen_pleno,
-            "n_puntos": len(puntos_ia) or len(puntos_sumario),
+            "n_puntos": len(puntos_sumario),
             "n_asistentes": len(asistentes),
             "n_ausentes": len(ausentes),
             "estado": "procesado",
             "procesado_at": "now()",
         })
 
-        _insertar_puntos(pleno_id, municipio_id, puntos_ia, puntos_sumario, votaciones_por_punto)
+        print(f"    ↳ Generando resúmenes de {len(puntos_sumario)} puntos...", flush=True)
+        _insertar_puntos(pleno_id, municipio_id, puntos_sumario, votaciones_por_punto, texto)
 
         print(f"    ✓ Acta {info['numero_acta']} importada correctamente\n")
         return True

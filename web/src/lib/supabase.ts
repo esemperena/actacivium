@@ -65,6 +65,13 @@ export interface Votacion {
   abstenciones: number;
 }
 
+export interface AsistenciaPartido {
+  sigla: string;
+  color: string;
+  presentes: number;
+  total: number;
+}
+
 // ── Municipios ─────────────────────────────────────────────────────────────
 
 export async function getMunicipios(): Promise<Municipio[]> {
@@ -220,6 +227,33 @@ export async function getPuntosRelevantes(limit = 12): Promise<any[]> {
       .select("*")
       .limit(limit);
     return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getAsistenciaPleno(plenoId: string): Promise<AsistenciaPartido[]> {
+  try {
+    const { data } = await supabase
+      .from("asistencia")
+      .select("asistio, partido_id, partidos(siglas, color_hex)")
+      .eq("pleno_id", plenoId);
+    if (!data?.length) return [];
+    const byParty: Record<string, AsistenciaPartido> = {};
+    for (const row of data as any[]) {
+      if (!row.partido_id || !row.partidos) continue;
+      if (!byParty[row.partido_id]) {
+        byParty[row.partido_id] = {
+          sigla: row.partidos.siglas,
+          color: row.partidos.color_hex ?? "#888",
+          presentes: 0,
+          total: 0,
+        };
+      }
+      byParty[row.partido_id].total++;
+      if (row.asistio) byParty[row.partido_id].presentes++;
+    }
+    return Object.values(byParty).sort((a, b) => b.total - a.total);
   } catch {
     return [];
   }

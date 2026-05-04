@@ -71,24 +71,61 @@ def extraer_metadatos(texto: str) -> dict:
     return meta
 
 
+_RE_GRUPO = re.compile(
+    r"(?:GRUPO\s+MUNICIPAL|MUNICIPAL\s+TALDEA?|TALDE\s+UDALA?)[:\s]+([A-ZÁÉÍÓÚÑÜ\w][^\n:]{2,60})",
+    re.IGNORECASE,
+)
+_RE_NOMBRE = re.compile(r"Don(?:a|ña)?\s+([A-ZÁÉÍÓÚÑÜ][^\n,]{3,50})")
+
+
+def extraer_asistentes_con_partido(texto: str) -> list[dict]:
+    """
+    Extrae concejales con partido y asistencia del encabezado del acta.
+    Devuelve lista de {nombre, partido_raw, asistio}.
+    partido_raw puede ser None si el acta no agrupa por grupos municipales.
+    """
+    def _parsear_bloque(bloque: str, asistio: bool) -> list[dict]:
+        registros = []
+        partido_actual: str | None = None
+        for linea in bloque.split("\n"):
+            m_grupo = _RE_GRUPO.search(linea)
+            if m_grupo:
+                partido_actual = m_grupo.group(1).strip()
+                continue
+            for m_nom in _RE_NOMBRE.finditer(linea):
+                registros.append({
+                    "nombre": m_nom.group(1).strip(),
+                    "partido_raw": partido_actual,
+                    "asistio": asistio,
+                })
+        return registros
+
+    resultado = []
+    m = re.search(r"ASISTEN:(.+?)(?:NO ASISTE|SECRETARIA|IDAZKARIA)", texto, re.DOTALL)
+    if m:
+        resultado.extend(_parsear_bloque(m.group(1), True))
+    m = re.search(r"NO ASISTE[NS]?:(.+?)(?:SECRETARIA|IDAZKARIA)", texto, re.DOTALL)
+    if m:
+        resultado.extend(_parsear_bloque(m.group(1), False))
+    return resultado
+
+
 def extraer_asistentes(texto: str) -> tuple[list[str], list[str]]:
     """Devuelve (asistentes, ausentes) como listas de nombres raw."""
+    registros = extraer_asistentes_con_partido(texto)
+    if registros:
+        return (
+            [r["nombre"] for r in registros if r["asistio"]],
+            [r["nombre"] for r in registros if not r["asistio"]],
+        )
+    # Fallback: regex directo sin agrupación por partido
     asistentes, ausentes = [], []
-
-    bloque_asisten = re.search(
-        r"ASISTEN:(.+?)(?:NO ASISTE|SECRETARIA)", texto, re.DOTALL
-    )
-    if bloque_asisten:
-        bloque = bloque_asisten.group(1)
-        asistentes = re.findall(r"Don(?:a|ña)?\s+([A-ZÁÉÍÓÚÑÜ][^\n]+)", bloque)
-
-    bloque_ausentes = re.search(
-        r"NO ASISTE[NS]?:(.+?)(?:SECRETARIA|IDAZKARIA)", texto, re.DOTALL
-    )
-    if bloque_ausentes:
-        bloque = bloque_ausentes.group(1)
-        ausentes = re.findall(r"Don(?:a|ña)?\s+([A-ZÁÉÍÓÚÑÜ][^\n]+)", bloque)
-
+    m = re.search(r"ASISTEN:(.+?)(?:NO ASISTE|SECRETARIA)", texto, re.DOTALL)
+    if m:
+        asistentes = re.findall(r"Don(?:a|ña)?\s+([A-ZÁÉÍÓÚÑÜ][^\n]+)", m.group(1))
+    m = re.search(r"NO ASISTE[NS]?:(.+?)(?:SECRETARIA|IDAZKARIA)", texto, re.DOTALL)
+    if m:
+        ausentes = re.findall(r"Don(?:a|ña)?\s+([A-ZÁÉÍÓÚÑÜ][^\n]+)", m.group(1))
     return [n.strip() for n in asistentes], [n.strip() for n in ausentes]
 
 
@@ -414,40 +451,9 @@ def clasificar_comision(titulo: str) -> str:
 
 PROMPT_RESUMEN_PLENO = """Eres el redactor de Acta Civium, una publicación ciudadana que analiza los plenos municipales desde una perspectiva social, ambiental y de responsabilidad pública.
 
-Analiza el siguiente texto de un acta de pleno municipal y genera un resumen estructurado en JSON con este formato exacto:
+Escribe un resumen de 2-3 frases del pleno municipal: qué temas dominaron, qué decisiones clave se tomaron y cuál es su impacto para la ciudadanía. Tono neutro con mirada crítica al impacto social y ambiental. Destaca si hubo decisiones polémicas o rechazadas. Solo el texto, sin JSON, sin markdown, sin introducción.
 
-{{
-  "resumen_pleno": "2-3 frases. Qué temas dominaron el pleno, qué decisiones clave se tomaron y cuál es su impacto ciudadano. Tono neutro pero con mirada crítica hacia el impacto social y ambiental.",
-  "puntos": [
-    {{
-      "numero": <número del punto>,
-      "titulo": "<título limpio en castellano>",
-      "categoria": "<una de: urbanismo|vivienda|hacienda|medio_ambiente|servicios_sociales|movilidad|cultura|gobernanza|derechos|seguridad|educacion|otro>",
-      "tipo": "<una de: aprobacion_definitiva|aprobacion_inicial|dar_cuenta|proposicion_normativa|mocion|ruego|pregunta_oral|declaracion_institucional|otro>",
-      "comision": "<una de: territorio|servicios_personas|servicios_generales|hacienda|informacion_control|pleno>",
-      "resultado": "<una de: aprobado|rechazado|enterado|retirado|sin_votacion>",
-      "unanimidad": <true|false>,
-      "relevancia_social": <1-5>,
-      "resumen_ia": "<1-2 frases explicando qué se decidió y por qué importa a la ciudadanía. Enfocado en impacto real: vivienda, servicios, presupuesto, medio ambiente, derechos.>"
-    }}
-  ]
-}}
-
-CRITERIOS DE RELEVANCIA SOCIAL (1-5):
-- 5: Decisiones que afectan directamente a colectivos vulnerables, al acceso a vivienda, al medio ambiente, a derechos fundamentales, o que implican grandes partidas presupuestarias.
-- 4: Cambios en ordenanzas fiscales con impacto ciudadano amplio, urbanismo con impacto en barrios, servicios sociales.
-- 3: Aprobación de planes o reglamentos de alcance medio.
-- 2: Trámites administrativos con algún impacto indirecto.
-- 1: Trámites puramente internos (compatibilidades, nombramientos técnicos, etc.).
-
-IMPORTANTE:
-- Incluye TODOS los puntos del orden del día, tanto los resolutivos como los de "dar cuenta".
-- Para los puntos de "dar cuenta" el resumen_ia puede ser más breve (1 frase).
-- Escribe los resúmenes en castellano, lenguaje ciudadano, sin jerga burocrática.
-- Destaca cuando un punto fue rechazado por la mayoría o aprobado solo con votos del gobierno.
-- Si hay impacto en colectivos vulnerables, menciónalo explícitamente.
-
-TEXTO DEL ACTA (primeras {max_pages} páginas):
+TEXTO DEL ACTA:
 {texto}
 """
 
@@ -471,34 +477,20 @@ Escribe solo el resumen, sin introducción ni explicaciones."""
 
 SYSTEM_RESUMEN_PLENO = (
     "Eres un redactor de Acta Civium, publicación ciudadana sobre plenos municipales. "
-    "Responde ÚNICAMENTE con el objeto JSON solicitado, sin texto adicional, sin markdown, "
-    "sin bloques de código. Solo el JSON puro empezando por { y terminando en }."
+    "NUNCA hagas preguntas. NUNCA pidas más información. Escribe DIRECTAMENTE el resumen "
+    "como texto plano, sin JSON, sin markdown, sin preámbulos."
 )
 
-def generar_resumen_pleno(texto: str, max_pages: int = PDF_MAX_PAGES_FOR_SUMMARY) -> dict | None:
-    """Llama a Claude CLI para generar el resumen estructurado del pleno."""
-    texto_recortado = _recortar_texto(texto, max_chars=120_000)
-    prompt = PROMPT_RESUMEN_PLENO.format(texto=texto_recortado, max_pages=max_pages)
 
-    resultado = _llamar_claude(prompt, system_prompt=SYSTEM_RESUMEN_PLENO)
-    if not resultado:
-        return None
+def generar_resumen_pleno(texto: str) -> str | None:
+    """Genera un resumen de 2-3 frases del pleno usando los primeros 60K chars del acta.
 
-    try:
-        # Intentar JSON directo primero
-        return json.loads(resultado)
-    except json.JSONDecodeError:
-        pass
-
-    try:
-        # Claude puede devolver el JSON envuelto en markdown (```json ... ```)
-        json_str = re.search(r"\{.*\}", resultado, re.DOTALL)
-        if json_str:
-            return json.loads(json_str.group())
-    except json.JSONDecodeError:
-        pass
-
-    return None
+    Devuelve el texto del resumen o None si Claude no responde.
+    La clasificación por punto se hace por separado con generar_resumen_punto().
+    """
+    texto_recortado = _recortar_texto(texto, max_chars=60_000)
+    prompt = PROMPT_RESUMEN_PLENO.format(texto=texto_recortado)
+    return _llamar_claude(prompt, system_prompt=SYSTEM_RESUMEN_PLENO, timeout=180)
 
 
 def generar_resumen_punto(titulo: str, resultado: str, texto: str) -> str | None:
@@ -510,7 +502,8 @@ def generar_resumen_punto(titulo: str, resultado: str, texto: str) -> str | None
     return _llamar_claude(prompt, system_prompt=SYSTEM_RESUMEN_PUNTO)
 
 
-def _llamar_claude(prompt: str, system_prompt: str | None = None) -> str | None:
+def _llamar_claude(prompt: str, system_prompt: str | None = None,
+                   timeout: int = 300) -> str | None:
     """Ejecuta Claude CLI de forma no interactiva y devuelve la respuesta.
 
     El prompt se envía por stdin (no como argumento) para evitar problemas
@@ -528,7 +521,7 @@ def _llamar_claude(prompt: str, system_prompt: str | None = None) -> str | None:
             input=prompt,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=timeout,
             encoding="utf-8",
             cwd=tempfile.gettempdir(),
         )

@@ -23,12 +23,14 @@ from pdf_processor import (
     extraer_texto,
     extraer_metadatos,
     extraer_asistentes,
+    extraer_asistentes_con_partido,
     extraer_puntos_sumario,
     extraer_votaciones_por_punto,
     clasificar_categoria,
     clasificar_tipo,
     clasificar_comision,
     generar_resumen_pleno,
+    generar_resumen_punto,
 )
 import db
 
@@ -131,12 +133,10 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
         n_con_votos = sum(1 for v in votaciones_por_punto.values() if v.get("partidos"))
         print(f"OK ({len(texto):,} chars, {len(puntos_sumario)} puntos, {n_con_votos} con votos)")
 
-        # ── Generar resumen con Claude CLI ────────────────────────────────────
-        print(f"    ↳ Generando resumen con Claude...", end=" ", flush=True)
-        resumen_data = generar_resumen_pleno(texto)
-        resumen_pleno = resumen_data.get("resumen_pleno", "") if resumen_data else ""
-        puntos_ia = resumen_data.get("puntos", []) if resumen_data else []
-        print(f"OK ({len(puntos_ia)} puntos clasificados)")
+        # ── Generar resumen del pleno con Claude ──────────────────────────────
+        print(f"    ↳ Generando resumen del pleno...", end=" ", flush=True)
+        resumen_pleno = generar_resumen_pleno(texto) or ""
+        print(f"OK ({len(resumen_pleno)} chars)")
 
         # ── Actualizar pleno con datos completos ──────────────────────────────
         db.actualizar_pleno(pleno_id, {
@@ -145,15 +145,23 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
             "hora_inicio": meta.get("hora_inicio"),
             "texto_completo": texto,
             "resumen_ia": resumen_pleno,
-            "n_puntos": len(puntos_ia) or len(puntos_sumario),
+            "n_puntos": len(puntos_sumario),
             "n_asistentes": len(asistentes),
             "n_ausentes": len(ausentes),
             "estado": "procesado",
             "procesado_at": "now()",
         })
 
-        # ── Insertar puntos del orden del día ─────────────────────────────────
-        _insertar_puntos(pleno_id, municipio_id, puntos_ia, puntos_sumario, votaciones_por_punto)
+        # ── Insertar asistencia por concejal y partido ────────────────────────
+        asistencia_detalle = extraer_asistentes_con_partido(texto)
+        if asistencia_detalle:
+            _insertar_asistencia(pleno_id, municipio_id, asistencia_detalle)
+            print(f"    ↳ Asistencia: {sum(1 for r in asistencia_detalle if r['asistio'])} presentes, "
+                  f"{sum(1 for r in asistencia_detalle if not r['asistio'])} ausentes")
+
+        # ── Insertar puntos con resumen_ia por punto ──────────────────────────
+        print(f"    ↳ Generando resúmenes de {len(puntos_sumario)} puntos...", flush=True)
+        _insertar_puntos(pleno_id, municipio_id, puntos_sumario, votaciones_por_punto, texto)
 
         # ── Limpiar PDF temporal ──────────────────────────────────────────────
         pdf_path.unlink(missing_ok=True)
@@ -167,38 +175,40 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
         return False
 
 
-def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_ia: list, puntos_sumario: list,
-                     votaciones_por_punto: dict):
-    """Inserta los puntos del orden del día y sus votaciones en la BD."""
-    fuente = puntos_ia if puntos_ia else [
-        {"numero": p["numero"], "titulo": p["titulo"],
-         "categoria": clasificar_categoria(p["titulo"]),
-         "tipo": clasificar_tipo(p["titulo"]),
-         "comision": clasificar_comision(p["titulo"]),
-         "resultado": "sin_votacion", "unanimidad": None,
-         "relevancia_social": None, "resumen_ia": None}
-        for p in puntos_sumario
-    ]
+def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
+                     votaciones_por_punto: dict, texto_completo: str = ""):
+    """Inserta los puntos del orden del día con resumen_ia generado por Claude."""
+    from backfill_resumenes import _extraer_fragmento
 
-    for p in fuente:
-        num = p.get("numero", 0)
+    for p in puntos_sumario:
+        num = p["numero"]
+        titulo = p["titulo"]
         vot = votaciones_por_punto.get(num, {})
+        resultado = vot.get("resultado") or "sin_votacion"
+        unanimidad = vot.get("unanimidad")
 
-        # Si el scraper detectó resultado, tiene prioridad sobre la IA (más fiable)
-        resultado = vot.get("resultado") or p.get("resultado", "sin_votacion")
-        unanimidad = vot.get("unanimidad") if vot else p.get("unanimidad")
+        # Clasificación por keywords (rápida, sin IA)
+        categoria = clasificar_categoria(titulo)
+        tipo = clasificar_tipo(titulo)
+        comision = clasificar_comision(titulo)
+
+        # Resumen por punto con Claude (extracto del cuerpo del acta)
+        extracto = _extraer_fragmento(texto_completo, num) if texto_completo else titulo
+        texto_para_resumen = extracto if extracto else titulo
+        resumen_ia = generar_resumen_punto(titulo, resultado, texto_para_resumen)
+        print(f"      [{num}] {titulo[:60]!r} → {resumen_ia[:70] if resumen_ia else 'sin resumen'}…")
 
         punto_id = db.insertar_punto({
             "pleno_id": pleno_id,
             "numero": num,
-            "titulo": p.get("titulo", ""),
-            "comision": p.get("comision", "otro"),
-            "tipo": p.get("tipo", "otro"),
-            "categoria": p.get("categoria", "otro"),
+            "titulo": titulo,
+            "comision": comision,
+            "tipo": tipo,
+            "categoria": categoria,
             "resultado": resultado,
             "unanimidad": unanimidad,
-            "resumen_ia": p.get("resumen_ia"),
-            "relevancia_social": p.get("relevancia_social"),
+            "resumen_ia": resumen_ia[:600] if resumen_ia else None,
+            "relevancia_social": None,  # backfill si se necesita
             "es_urgencia": p.get("es_urgencia", False),
         })
 
@@ -228,6 +238,21 @@ def _mostrar_actas_nuevas(actas, municipio_id: str):
         return
     for a in nuevas:
         print(f"  Acta {a.numero_acta:>3} | {a.fecha_str} | {a.tipo:<14} | {a.url_pdf}")
+
+
+def _insertar_asistencia(pleno_id: str, municipio_id: str, registros: list[dict]):
+    filas = []
+    for r in registros:
+        partido_id = None
+        if r.get("partido_raw"):
+            partido_id = db.get_partido_id(municipio_id, r["partido_raw"])
+        filas.append({
+            "pleno_id": pleno_id,
+            "nombre_raw": r["nombre"],
+            "partido_id": partido_id,
+            "asistio": r["asistio"],
+        })
+    db.insertar_asistencia_bulk(filas)
 
 
 def _registrar_log(municipio_id: str, nuevas: int, errores: int, inicio: float):

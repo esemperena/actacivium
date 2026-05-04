@@ -3,20 +3,22 @@ export const prerender = false;
 import Base from '../../layouts/Base.astro';
 import VotacionToggle from '../../components/VotacionToggle';
 import ParlamentArc from '../../components/ParlamentArc';
-import { getPleno, getPuntosPleno, getVotacionesPunto, supabase,
+import AsistenciaWidget from '../../components/AsistenciaWidget';
+import { getPleno, getPuntosPleno, getVotacionesPunto, getAsistenciaPleno, supabase,
          CATEGORIAS, TIPO_LABEL, RESULTADO_LABEL } from '../../lib/supabase';
 
 const { id } = Astro.params;
 const pleno = await getPleno(id!);
 if (!pleno) return Astro.redirect("/actas");
 
-const [puntos, { data: meta }] = await Promise.all([
+const [puntos, { data: meta }, asistenciaPartidos] = await Promise.all([
   getPuntosPleno(id!),
   supabase
     .from("plenos")
     .select("url_pdf_original, n_asistentes, n_ausentes, alcalde_nombre, secretaria_nombre, hora_inicio, hora_fin, municipio_id")
     .eq("id", id!)
     .single(),
+  getAsistenciaPleno(id!),
 ]);
 
 // Votaciones para todos los puntos
@@ -355,6 +357,14 @@ const puntosOrdenDelDia  = [...puntosUrgentes, ...puntosResolutivos];
           <div class="composicion-total">
             <strong>{totalConcejales}</strong> concejales · <strong>{composicion.length}</strong> partidos
           </div>
+        </div>
+      )}
+
+      <!-- Asistencia por partido -->
+      {asistenciaPartidos.length > 0 && (
+        <div class="sidebar-card">
+          <div class="sidebar-section-label">Asistencia al pleno</div>
+          <AsistenciaWidget client:load asistencia={asistenciaPartidos} />
         </div>
       )}
 

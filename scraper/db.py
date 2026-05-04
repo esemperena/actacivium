@@ -73,6 +73,15 @@ def get_partido_id(municipio_id: str, siglas: str) -> str | None:
     return None
 
 
+def insertar_asistencia_bulk(registros: list[dict]):
+    if registros:
+        get_client().table("asistencia").insert(registros).execute()
+
+
+def limpiar_asistencia_pleno(pleno_id: str):
+    get_client().table("asistencia").delete().eq("pleno_id", pleno_id).execute()
+
+
 def registrar_log(municipio_id: str, pdfs_nuevos: int, pdfs_error: int, duracion: float, detalle: dict):
     get_client().table("scraping_log").insert({
         "municipio_id": municipio_id,
