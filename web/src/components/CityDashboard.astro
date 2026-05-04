@@ -1,5 +1,6 @@
 ---
 import ParlamentArc from './ParlamentArc';
+import { CATEGORIAS } from '../lib/supabase';
 import type { CityDashboardData, Municipio } from '../lib/supabase';
 
 interface Props {
@@ -56,15 +57,6 @@ const summaryCards = [
   },
 ];
 
-const resultTone: Record<string, string> = {
-  aprobado: 'var(--color-green)',
-  rechazado: 'var(--color-red)',
-  enterado: 'var(--color-ink-subtle)',
-  sin_votacion: 'var(--color-amber)',
-  aplazado: 'var(--color-amber)',
-  retirado: 'var(--color-ink-subtle)',
-};
-
 const pairKey = (partyA: string, partyB: string) => `${partyA}__${partyB}`;
 
 const pairColumns = dashboard.alignments
@@ -89,6 +81,29 @@ const alignmentRows = dashboard.alignmentByCategory
 const conflictRows = dashboard.lowConsensusCategories
   .filter((row) => row.categoria !== 'otro')
   .slice(0, 5);
+
+const proposalCards = [
+  {
+    key: 'gobierno',
+    label: 'Propuestas del gobierno',
+    data: dashboard.proposalSummary.gobierno,
+    tone: 'proposal-card--government',
+  },
+  {
+    key: 'oposicion',
+    label: 'Propuestas de la oposicion',
+    data: dashboard.proposalSummary.oposicion,
+    tone: 'proposal-card--opposition',
+  },
+];
+
+const featuredPoints = dashboard.featuredPoints.slice(0, 4);
+
+const blockLabel = (value: 'gobierno' | 'oposicion' | 'sin_clasificar') => {
+  if (value === 'gobierno') return 'Gobierno';
+  if (value === 'oposicion') return 'Oposicion';
+  return 'Sin clasificar';
+};
 
 const heatBackground = (share: number) => {
   if (share >= 0.75) return 'oklch(92% 0.04 155)';
@@ -127,7 +142,7 @@ const heatColor = (share: number) => {
   </div>
 
   <div class="dashboard-overview-grid">
-    <section class="dashboard-panel dashboard-panel--compact">
+    <section class="dashboard-panel dashboard-panel--compact dashboard-panel--equal">
       <div class="dashboard-panel-head dashboard-panel-head--tight">
         <p class="dashboard-panel-kicker">Composicion</p>
         <h3 class="dashboard-panel-title dashboard-panel-title--sm">Quien ocupa el pleno</h3>
@@ -164,14 +179,14 @@ const heatColor = (share: number) => {
       )}
     </section>
 
-    <section class="dashboard-panel dashboard-panel--compact">
+    <section class="dashboard-panel dashboard-panel--compact dashboard-panel--equal">
       <div class="dashboard-panel-head dashboard-panel-head--tight">
         <p class="dashboard-panel-kicker">Agenda</p>
         <h3 class="dashboard-panel-title dashboard-panel-title--sm">Temas con mas peso</h3>
       </div>
 
       <div class="dashboard-bars dashboard-bars--compact">
-        {dashboard.categoryStats.slice(0, 5).map((item) => (
+        {dashboard.categoryStats.slice(0, 6).map((item) => (
           <div class="dashboard-bar-row">
             <div class="dashboard-bar-meta">
               <span class:list={['badge', `badge-${item.categoria}`]}>{item.label}</span>
@@ -184,36 +199,9 @@ const heatColor = (share: number) => {
         ))}
       </div>
     </section>
-
-    <section class="dashboard-panel dashboard-panel--compact">
-      <div class="dashboard-panel-head dashboard-panel-head--tight">
-        <p class="dashboard-panel-kicker">Resultado</p>
-        <h3 class="dashboard-panel-title dashboard-panel-title--sm">Como acaban los puntos</h3>
-      </div>
-
-      <div class="dashboard-results dashboard-results--compact">
-        {dashboard.resultStats.map((item) => (
-          <article class="dashboard-result-card">
-            <div class="dashboard-result-top">
-              <span class="dashboard-result-label">{item.label}</span>
-              <span class="dashboard-result-value" style={`color:${resultTone[item.resultado] ?? 'var(--color-ink)'}`}>
-                {item.total}
-              </span>
-            </div>
-            <div class="dashboard-result-track">
-              <div
-                class="dashboard-result-fill"
-                style={`width:${Math.max(item.share * 100, 6)}%; background:${resultTone[item.resultado] ?? 'var(--color-ink)'}`}
-              />
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
   </div>
 
-  <div class="dashboard-insight-grid">
-    <section class="dashboard-panel">
+  <section class="dashboard-panel dashboard-panel--full">
       <div class="dashboard-panel-head">
         <p class="dashboard-panel-kicker">Coincidencia por tema</p>
         <h3 class="dashboard-panel-title">Que partidos votan parecido segun el asunto</h3>
@@ -252,6 +240,86 @@ const heatColor = (share: number) => {
         </div>
       ) : (
         <p class="dashboard-empty">Todavia no hay suficientes votaciones comparables por tema.</p>
+      )}
+  </section>
+
+  <div class="dashboard-insight-grid">
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <p class="dashboard-panel-kicker">Puntos clave</p>
+        <h3 class="dashboard-panel-title">Asuntos con mas impacto potencial</h3>
+      </div>
+
+      {featuredPoints.length > 0 ? (
+        <div class="featured-points-grid">
+          {featuredPoints.map((item) => (
+            <a href={`/acta/${item.plenoId}`} class="featured-point-card">
+              <div class="featured-point-top">
+                <span class="featured-point-acta">Acta {item.numeroActa}</span>
+                <span class="featured-point-date">{compactDate(item.fecha)}</span>
+              </div>
+              <p class="featured-point-title">{item.titulo}</p>
+              <div class="featured-point-tags">
+                <span class:list={['badge', `badge-${item.categoria}`]}>
+                  {CATEGORIAS[item.categoria] ?? item.categoria}
+                </span>
+                {item.proponente && (
+                  <span class:list={['featured-point-block', `featured-point-block--${item.bloque}`]}>
+                    {blockLabel(item.bloque)} · {item.proponente}
+                  </span>
+                )}
+              </div>
+              <div class="featured-point-footer">
+                <span class:list={['resultado-pill', item.resultado]}>
+                  <span class="pill-dot" />
+                  {item.resultado === 'aprobado'
+                    ? 'Aprobado'
+                    : item.resultado === 'rechazado'
+                      ? 'Rechazado'
+                      : item.resultado === 'enterado'
+                        ? 'Enterado'
+                        : item.resultado}
+                </span>
+                <span class="featured-point-relevance">Relevancia {item.relevancia}/5</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p class="dashboard-empty">Todavia no hay puntos destacados con relevancia social suficiente.</p>
+      )}
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <p class="dashboard-panel-kicker">Impulso politico</p>
+        <h3 class="dashboard-panel-title">Que bloque consigue sacar adelante sus propuestas</h3>
+      </div>
+
+      {(dashboard.proposalSummary.gobierno.total > 0 || dashboard.proposalSummary.oposicion.total > 0) ? (
+        <div class="proposal-grid">
+          {proposalCards.map((item) => {
+            const successShare = item.data.total > 0 ? item.data.aprobadas / item.data.total : 0;
+            return (
+              <article class:list={['proposal-card', item.tone]}>
+                <p class="proposal-card-label">{item.label}</p>
+                <div class="proposal-card-top">
+                  <span class="proposal-card-value">{item.data.aprobadas}</span>
+                  <span class="proposal-card-note">de {item.data.total} aprobadas</span>
+                </div>
+                <div class="proposal-track">
+                  <div class="proposal-fill" style={`width:${Math.max(successShare * 100, item.data.total > 0 ? 10 : 0)}%`} />
+                </div>
+                <p class="proposal-card-foot">
+                  {Math.round(successShare * 100)}% de exito
+                  {item.data.rechazadas > 0 ? ` · ${item.data.rechazadas} rechazadas` : ''}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p class="dashboard-empty">Todavia no hay suficientes puntos con grupo proponente identificado.</p>
       )}
     </section>
 
@@ -374,21 +442,32 @@ const heatColor = (share: number) => {
 
   .dashboard-overview-grid {
     display: grid;
-    grid-template-columns: 1.1fr 0.95fr 0.95fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
-    align-items: start;
+    align-items: stretch;
   }
   .dashboard-insight-grid {
     display: grid;
-    grid-template-columns: 1.4fr 0.9fr;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
     gap: 14px;
     align-items: start;
+  }
+  .dashboard-insight-grid > .dashboard-panel:last-child {
+    grid-column: 1 / -1;
   }
   .dashboard-panel {
     padding: 18px;
   }
   .dashboard-panel--compact {
     padding: 16px;
+  }
+  .dashboard-panel--equal {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-panel--full {
+    width: 100%;
   }
   .dashboard-panel-head {
     display: flex;
@@ -411,13 +490,16 @@ const heatColor = (share: number) => {
   }
 
   .dashboard-composition {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 12px;
+    flex: 1;
+    justify-content: space-between;
   }
   .dashboard-arc-wrap {
     max-width: 260px;
     margin: 0 auto;
+    width: 100%;
   }
   .dashboard-arc-wrap :global(svg) {
     margin-bottom: 8px !important;
@@ -451,6 +533,8 @@ const heatColor = (share: number) => {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    flex: 1;
+    justify-content: space-between;
   }
   .dashboard-bars--compact {
     gap: 8px;
@@ -480,48 +564,6 @@ const heatColor = (share: number) => {
     height: 100%;
     border-radius: 999px;
     background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-mid) 100%);
-  }
-
-  .dashboard-results {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-  .dashboard-results--compact {
-    gap: 8px;
-  }
-  .dashboard-result-card {
-    padding: 12px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: oklch(99.6% 0.004 195);
-  }
-  .dashboard-result-top {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    align-items: baseline;
-  }
-  .dashboard-result-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--color-ink-muted);
-  }
-  .dashboard-result-value {
-    font-family: var(--font-serif);
-    font-size: 1.2rem;
-    line-height: 1;
-  }
-  .dashboard-result-track {
-    height: 7px;
-    border-radius: 999px;
-    overflow: hidden;
-    margin-top: 10px;
-    background: var(--color-accent-xlight);
-  }
-  .dashboard-result-fill {
-    height: 100%;
-    border-radius: 999px;
   }
 
   .alignment-matrix {
@@ -583,6 +625,134 @@ const heatColor = (share: number) => {
     flex-direction: column;
     gap: 10px;
   }
+
+  .featured-points-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .featured-point-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: linear-gradient(180deg, oklch(99.2% 0.007 160) 0%, var(--color-bg-card) 100%);
+    color: inherit;
+    min-height: 170px;
+  }
+  .featured-point-card:hover {
+    box-shadow: var(--shadow-sm);
+  }
+  .featured-point-top,
+  .featured-point-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .featured-point-acta,
+  .featured-point-date,
+  .featured-point-relevance {
+    font-size: 0.68rem;
+    color: var(--color-ink-subtle);
+  }
+  .featured-point-acta {
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .featured-point-title {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+  .featured-point-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .featured-point-block {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: oklch(96.5% 0.01 240);
+    color: var(--color-ink-muted);
+  }
+  .featured-point-block--gobierno {
+    background: var(--color-accent-xlight);
+    color: var(--color-accent);
+  }
+  .featured-point-block--oposicion {
+    background: var(--color-red-bg);
+    color: var(--color-red);
+  }
+
+  .proposal-grid {
+    display: grid;
+    gap: 10px;
+  }
+  .proposal-card {
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-card);
+  }
+  .proposal-card--government {
+    background: linear-gradient(180deg, var(--color-accent-xlight) 0%, var(--color-bg-card) 100%);
+  }
+  .proposal-card--opposition {
+    background: linear-gradient(180deg, var(--color-red-bg) 0%, var(--color-bg-card) 100%);
+  }
+  .proposal-card-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+  .proposal-card-top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .proposal-card-value {
+    font-family: var(--font-serif);
+    font-size: 1.7rem;
+    line-height: 1;
+    color: var(--color-ink);
+  }
+  .proposal-card-note,
+  .proposal-card-foot {
+    font-size: 0.74rem;
+    color: var(--color-ink-muted);
+  }
+  .proposal-track {
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 10px;
+    background: oklch(95% 0.008 240);
+  }
+  .proposal-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-green) 100%);
+  }
+  .proposal-card-foot {
+    margin-top: 7px;
+    line-height: 1.45;
+  }
   .conflict-card {
     padding: 12px;
     border: 1px solid var(--color-border);
@@ -628,9 +798,12 @@ const heatColor = (share: number) => {
 
   @media (max-width: 1100px) {
     .dashboard-overview-grid,
-    .dashboard-insight-grid,
-    .dashboard-hero {
+    .dashboard-hero,
+    .dashboard-insight-grid {
       grid-template-columns: 1fr;
+    }
+    .dashboard-insight-grid > .dashboard-panel:last-child {
+      grid-column: auto;
     }
   }
 
@@ -644,9 +817,11 @@ const heatColor = (share: number) => {
     .dashboard-panel--compact {
       padding: 16px;
     }
-    .dashboard-stat-grid,
-    .dashboard-results {
+    .dashboard-stat-grid {
       grid-template-columns: 1fr 1fr;
+    }
+    .featured-points-grid {
+      grid-template-columns: 1fr;
     }
     .alignment-matrix-header,
     .alignment-row {
@@ -659,8 +834,7 @@ const heatColor = (share: number) => {
   }
 
   @media (max-width: 520px) {
-    .dashboard-stat-grid,
-    .dashboard-results {
+    .dashboard-stat-grid {
       grid-template-columns: 1fr;
     }
     .dashboard-stat {

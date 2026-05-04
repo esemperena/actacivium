@@ -29,12 +29,23 @@ from pdf_processor import (
     clasificar_categoria,
     clasificar_tipo,
     clasificar_comision,
+    extraer_grupo_proponente_raw,
+    calcular_relevancia_social,
     generar_resumen_pleno,
     generar_resumen_punto,
 )
 import db
 
 MUNICIPIO_NOMBRE = "San Sebastián"
+TIPOS_CON_PROPONENTE = {
+    "mocion",
+    "proposicion_normativa",
+    "interpelacion",
+    "pregunta_oral",
+    "pregunta_escrita",
+    "ruego",
+    "declaracion_institucional",
+}
 
 
 def main():
@@ -196,6 +207,23 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
         extracto = _extraer_fragmento(texto_completo, num) if texto_completo else titulo
         texto_para_resumen = extracto if extracto else titulo
         resumen_ia = generar_resumen_punto(titulo, resultado, texto_para_resumen)
+        grupo_proponente_raw = (
+            extraer_grupo_proponente_raw(titulo, extracto)
+            if tipo in TIPOS_CON_PROPONENTE else None
+        )
+        grupo_proponente_id = (
+            db.get_partido_id(municipio_id, grupo_proponente_raw)
+            if grupo_proponente_raw else None
+        )
+        relevancia_social = calcular_relevancia_social(
+            titulo,
+            categoria=categoria,
+            tipo=tipo,
+            resultado=resultado,
+            unanimidad=unanimidad,
+            resumen=resumen_ia or "",
+            texto=extracto,
+        )
         print(f"      [{num}] {titulo[:60]!r} → {resumen_ia[:70] if resumen_ia else 'sin resumen'}…")
 
         punto_id = db.insertar_punto({
@@ -207,8 +235,9 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
             "categoria": categoria,
             "resultado": resultado,
             "unanimidad": unanimidad,
+            "grupo_proponente_id": grupo_proponente_id,
             "resumen_ia": resumen_ia[:600] if resumen_ia else None,
-            "relevancia_social": None,  # backfill si se necesita
+            "relevancia_social": relevancia_social,
             "es_urgencia": p.get("es_urgencia", False),
         })
 

@@ -54,6 +54,7 @@ export interface Punto {
   texto_completo: string | null;
   relevancia_social: number | null;
   es_urgencia: boolean;
+  grupo_proponente_id?: string | null;
 }
 
 export interface Votacion {
@@ -131,6 +132,21 @@ export interface CityDashboardData {
     votedPoints: number;
     unanimousPoints: number;
     conflictShare: number;
+  }>;
+  proposalSummary: {
+    gobierno: { total: number; aprobadas: number; rechazadas: number; };
+    oposicion: { total: number; aprobadas: number; rechazadas: number; };
+  };
+  featuredPoints: Array<{
+    plenoId: string;
+    numeroActa: number;
+    fecha: string;
+    titulo: string;
+    categoria: string;
+    relevancia: number;
+    resultado: string;
+    proponente: string | null;
+    bloque: "gobierno" | "oposicion" | "sin_clasificar";
   }>;
   timeline: Array<{
     id: string;
@@ -215,7 +231,17 @@ export async function getStatsMunicipio(municipioId: string) {
   }
 }
 
-export async function getCityDashboard(municipioId: string): Promise<CityDashboardData> {
+function partyMatchesGovernment(sigla: string, partidoGobierno: string | null | undefined) {
+  if (!sigla || !partidoGobierno) return false;
+  const left = sigla.toUpperCase().trim();
+  const right = partidoGobierno.toUpperCase().trim();
+  return left === right || left.includes(right) || right.includes(left);
+}
+
+export async function getCityDashboard(
+  municipioId: string,
+  partidoGobierno?: string | null
+): Promise<CityDashboardData> {
   const empty: CityDashboardData = {
     summary: {
       totalPlenos: 0,
@@ -234,6 +260,11 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
     alignments: [],
     alignmentByCategory: [],
     lowConsensusCategories: [],
+    proposalSummary: {
+      gobierno: { total: 0, aprobadas: 0, rechazadas: 0 },
+      oposicion: { total: 0, aprobadas: 0, rechazadas: 0 },
+    },
+    featuredPoints: [],
     timeline: [],
     highlights: [],
   };
@@ -267,10 +298,16 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
       return { ...empty, composicion };
     }
 
+    const governmentSiglas = new Set(
+      composicion
+        .filter((row) => partyMatchesGovernment(row.sigla, partidoGobierno))
+        .map((row) => row.sigla)
+    );
+
     const plenoIds = plenos.map((pleno) => pleno.id);
     const { data: puntosData } = await supabase
       .from("puntos")
-      .select("id, pleno_id, titulo, categoria, resultado, tipo, unanimidad")
+      .select("id, pleno_id, titulo, categoria, resultado, tipo, unanimidad, relevancia_social, grupo_proponente_id, partidos:grupo_proponente_id(siglas)")
       .in("pleno_id", plenoIds);
     const { data: votacionesData } = await supabase
       .from("votaciones")
@@ -472,6 +509,58 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
       )
       .slice(0, 5);
 
+    const proposalSummary = {
+      gobierno: { total: 0, aprobadas: 0, rechazadas: 0 },
+      oposicion: { total: 0, aprobadas: 0, rechazadas: 0 },
+    };
+
+    const featuredPoints = puntos
+      .map((punto: any) => {
+        const pleno = plenos.find((item) => item.id === punto.pleno_id);
+        const proponente = punto.partidos?.siglas ?? null;
+        const bloque: "gobierno" | "oposicion" | "sin_clasificar" =
+          proponente
+            ? (governmentSiglas.has(proponente) ? "gobierno" : "oposicion")
+            : "sin_clasificar";
+
+        if (proponente && bloque !== "sin_clasificar") {
+          proposalSummary[bloque].total += 1;
+          if (punto.resultado === "aprobado") proposalSummary[bloque].aprobadas += 1;
+          if (punto.resultado === "rechazado") proposalSummary[bloque].rechazadas += 1;
+        }
+
+        return {
+          plenoId: punto.pleno_id,
+          numeroActa: pleno?.numero_acta ?? 0,
+          fecha: pleno?.fecha ?? "",
+          titulo: punto.titulo,
+          categoria: punto.categoria ?? "otro",
+          relevancia: punto.relevancia_social ?? 0,
+          resultado: punto.resultado ?? "sin_votacion",
+          proponente,
+          bloque,
+          tipo: punto.tipo ?? "otro",
+        };
+      })
+      .filter((item) => item.fecha)
+      .sort((a, b) =>
+        b.relevancia - a.relevancia ||
+        b.fecha.localeCompare(a.fecha) ||
+        a.numeroActa - b.numeroActa
+      )
+      .slice(0, 4)
+      .map(({ plenoId, numeroActa, fecha, titulo, categoria, relevancia, resultado, proponente, bloque }) => ({
+        plenoId,
+        numeroActa,
+        fecha,
+        titulo,
+        categoria,
+        relevancia,
+        resultado,
+        proponente,
+        bloque,
+      }));
+
     const timeline = plenos.map((pleno) => ({
       id: pleno.id,
       numero_acta: pleno.numero_acta,
@@ -537,6 +626,8 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
       alignments,
       alignmentByCategory,
       lowConsensusCategories,
+      proposalSummary,
+      featuredPoints,
       timeline,
       highlights,
     };

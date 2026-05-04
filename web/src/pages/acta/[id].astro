@@ -21,6 +21,21 @@ const [puntos, { data: meta }, asistenciaPartidos] = await Promise.all([
   getAsistenciaPleno(id!),
 ]);
 
+const { data: puntosMeta } = await supabase
+  .from("puntos")
+  .select("id, relevancia_social, grupo_proponente_id, partidos:grupo_proponente_id(siglas)")
+  .eq("pleno_id", id!);
+
+const puntoExtraById = new Map(
+  (puntosMeta ?? []).map((row: any) => [
+    row.id,
+    {
+      relevancia: row.relevancia_social ?? 0,
+      proponente: row.partidos?.siglas ?? null,
+    },
+  ])
+);
+
 // Votaciones para todos los puntos
 const votacionesPorPunto: Record<string, any[]> = {};
 await Promise.all(
@@ -61,17 +76,100 @@ const puntosControversia = puntos.filter((p) => {
 // Municipio
 let municipioSlug   = "";
 let municipioNombre = pleno.municipio ?? "San Sebastián";
+let partidoGobierno: string | null = null;
 if (meta?.municipio_id) {
   try {
     const { data: muni } = await supabase
       .from("municipios")
-      .select("slug, nombre")
+      .select("slug, nombre, partido_gobierno")
       .eq("id", meta.municipio_id)
       .single();
     municipioSlug   = muni?.slug   ?? "";
     municipioNombre = muni?.nombre ?? municipioNombre;
+    partidoGobierno = muni?.partido_gobierno ?? null;
   } catch {}
 }
+
+function partyMatchesGovernment(sigla: string, gobierno: string | null | undefined) {
+  if (!sigla || !gobierno) return false;
+  const left = sigla.toUpperCase().trim();
+  const right = gobierno.toUpperCase().trim();
+  return left === right || left.includes(right) || right.includes(left);
+}
+
+const governmentSiglas = new Set(
+  composicion
+    .filter((item) => partyMatchesGovernment(item.sigla, partidoGobierno))
+    .map((item) => item.sigla)
+);
+
+const proposalSummary = {
+  gobierno: { total: 0, aprobadas: 0, rechazadas: 0 },
+  oposicion: { total: 0, aprobadas: 0, rechazadas: 0 },
+};
+
+const puntosEnriquecidos = puntos.map((p) => {
+  const extra = puntoExtraById.get(p.id);
+  const proponente = extra?.proponente ?? null;
+  const bloque = proponente
+    ? (governmentSiglas.has(proponente) ? "gobierno" : "oposicion")
+    : "sin_clasificar";
+
+  if (proponente && bloque !== "sin_clasificar") {
+    proposalSummary[bloque].total += 1;
+    if (p.resultado === "aprobado") proposalSummary[bloque].aprobadas += 1;
+    if (p.resultado === "rechazado") proposalSummary[bloque].rechazadas += 1;
+  }
+
+  return {
+    ...p,
+    relevanciaSocial: extra?.relevancia ?? p.relevancia_social ?? 0,
+    proponente,
+    bloque,
+  };
+});
+
+const puntosClave = puntosEnriquecidos
+  .filter((p) => p.tipo !== "dar_cuenta")
+  .sort((a, b) =>
+    b.relevanciaSocial - a.relevanciaSocial ||
+    Number(Boolean(votacionesPorPunto[b.id])) - Number(Boolean(votacionesPorPunto[a.id])) ||
+    a.numero - b.numero
+  )
+  .slice(0, 4);
+
+const puntosMasDivididos = puntosEnriquecidos
+  .filter((p) => {
+    const votos = votacionesPorPunto[p.id] ?? [];
+    return votos.length > 0 && !p.unanimidad;
+  })
+  .sort((a, b) =>
+    b.relevanciaSocial - a.relevanciaSocial ||
+    (b.resultado === "rechazado" ? 1 : 0) - (a.resultado === "rechazado" ? 1 : 0) ||
+    a.numero - b.numero
+  )
+  .slice(0, 4);
+
+const proposalCards = [
+  {
+    key: "gobierno",
+    label: "Propuestas del gobierno",
+    data: proposalSummary.gobierno,
+    tone: "acta-proposal-card--government",
+  },
+  {
+    key: "oposicion",
+    label: "Propuestas de la oposicion",
+    data: proposalSummary.oposicion,
+    tone: "acta-proposal-card--opposition",
+  },
+];
+
+const blockLabel = (value: string) => {
+  if (value === "gobierno") return "Gobierno";
+  if (value === "oposicion") return "Oposicion";
+  return "Sin clasificar";
+};
 
 // Descripción fallback cuando no hay resumen_ia
 function describir(p: any): string | null {
@@ -203,6 +301,120 @@ const puntosOrdenDelDia  = [...puntosUrgentes, ...puntosResolutivos];
       <div class="metric-label">Concejales</div>
     </div>
   </div>
+
+  <section class="acta-dashboard">
+    <section class="acta-dashboard-panel acta-dashboard-panel--wide">
+      <div class="acta-dashboard-head">
+        <p class="acta-dashboard-kicker">Puntos clave</p>
+        <h2 class="acta-dashboard-title">Lo mas relevante de esta sesion</h2>
+      </div>
+
+      {puntosClave.length > 0 ? (
+        <div class="acta-featured-grid">
+          {puntosClave.map((p) => (
+            <article class="acta-featured-card">
+              <div class="acta-featured-top">
+                <span class="acta-featured-number">Punto {p.numero}</span>
+                <span class="acta-featured-relevance">Relevancia {p.relevanciaSocial}/5</span>
+              </div>
+              <p class="acta-featured-title">{p.titulo}</p>
+              <div class="acta-featured-tags">
+                {p.categoria && p.categoria !== "otro" && (
+                  <span class:list={["badge", `badge-${p.categoria}`]}>
+                    {CATEGORIAS[p.categoria] ?? p.categoria}
+                  </span>
+                )}
+                {p.proponente && (
+                  <span class:list={["acta-block-pill", `acta-block-pill--${p.bloque}`]}>
+                    {blockLabel(p.bloque)} · {p.proponente}
+                  </span>
+                )}
+              </div>
+              <p class="acta-featured-summary">{describir(p)}</p>
+              <div class="acta-featured-footer">
+                <span class:list={["resultado-pill", p.resultado]}>
+                  <span class="pill-dot" />
+                  {RESULTADO_LABEL[p.resultado] ?? p.resultado}
+                </span>
+                {votacionesPorPunto[p.id] && !p.unanimidad && (
+                  <span class="acta-featured-conflict">Votacion dividida</span>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p class="empty-state compact-empty">Todavía no hay puntos destacados para esta sesión.</p>
+      )}
+    </section>
+
+    <section class="acta-dashboard-panel">
+      <div class="acta-dashboard-head">
+        <p class="acta-dashboard-kicker">Impulso politico</p>
+        <h2 class="acta-dashboard-title">Quien propone y que consigue aprobar</h2>
+      </div>
+
+      {(proposalSummary.gobierno.total > 0 || proposalSummary.oposicion.total > 0) ? (
+        <div class="acta-proposal-grid">
+          {proposalCards.map((item) => {
+            const successShare = item.data.total > 0 ? item.data.aprobadas / item.data.total : 0;
+            return (
+              <article class:list={["acta-proposal-card", item.tone]}>
+                <p class="acta-proposal-label">{item.label}</p>
+                <div class="acta-proposal-value-row">
+                  <span class="acta-proposal-value">{item.data.aprobadas}</span>
+                  <span class="acta-proposal-note">de {item.data.total}</span>
+                </div>
+                <div class="acta-proposal-track">
+                  <div class="acta-proposal-fill" style={`width:${Math.max(successShare * 100, item.data.total > 0 ? 10 : 0)}%`} />
+                </div>
+                <p class="acta-proposal-foot">
+                  {Math.round(successShare * 100)}% de exito
+                  {item.data.rechazadas > 0 ? ` · ${item.data.rechazadas} rechazadas` : ""}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p class="empty-state compact-empty">Aún no hay suficientes grupos proponentes identificados en esta acta.</p>
+      )}
+    </section>
+
+    <section class="acta-dashboard-panel">
+      <div class="acta-dashboard-head">
+        <p class="acta-dashboard-kicker">Conflicto</p>
+        <h2 class="acta-dashboard-title">Donde se partio mas el pleno</h2>
+      </div>
+
+      {puntosMasDivididos.length > 0 ? (
+        <div class="acta-conflict-list">
+          {puntosMasDivididos.map((p) => (
+            <article class="acta-conflict-card">
+              <div class="acta-conflict-top">
+                <span class="acta-conflict-point">Punto {p.numero}</span>
+                {p.categoria && p.categoria !== "otro" && (
+                  <span class:list={["badge", `badge-${p.categoria}`]}>
+                    {CATEGORIAS[p.categoria] ?? p.categoria}
+                  </span>
+                )}
+              </div>
+              <p class="acta-conflict-title">{p.titulo}</p>
+              <div class="acta-conflict-meta">
+                <span class:list={["resultado-pill", p.resultado]}>
+                  <span class="pill-dot" />
+                  {RESULTADO_LABEL[p.resultado] ?? p.resultado}
+                </span>
+                <span class="acta-conflict-relevance">Relevancia {p.relevanciaSocial}/5</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p class="empty-state compact-empty">Esta sesión no deja suficientes votaciones divididas para destacarlas aquí.</p>
+      )}
+    </section>
+  </section>
 
   <!-- ── PAGE GRID ──────────────────────────────────────────────────────── -->
   <div class="page-grid">
@@ -474,6 +686,174 @@ const puntosOrdenDelDia  = [...puntosUrgentes, ...puntosResolutivos];
     margin-top: 6px;
   }
 
+  /* ── Dashboard de acta ── */
+  .acta-dashboard {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+  .acta-dashboard-panel {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) + 2px);
+    padding: 18px;
+  }
+  .acta-dashboard-panel--wide {
+    grid-row: span 2;
+  }
+  .acta-dashboard-head {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 14px;
+  }
+  .acta-dashboard-kicker {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+  .acta-dashboard-title {
+    font-family: var(--font-serif);
+    font-size: 1.06rem;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+  .acta-featured-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .acta-featured-card {
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: linear-gradient(180deg, oklch(99.2% 0.007 160) 0%, var(--color-bg-card) 100%);
+  }
+  .acta-featured-top,
+  .acta-featured-footer,
+  .acta-featured-tags,
+  .acta-conflict-top,
+  .acta-conflict-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .acta-featured-number,
+  .acta-featured-relevance,
+  .acta-featured-conflict,
+  .acta-conflict-point,
+  .acta-conflict-relevance {
+    font-size: 0.68rem;
+    color: var(--color-ink-subtle);
+  }
+  .acta-featured-number,
+  .acta-conflict-point {
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .acta-featured-title,
+  .acta-conflict-title {
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--color-ink);
+    font-weight: 600;
+    margin: 10px 0 8px;
+  }
+  .acta-featured-summary {
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+    margin-bottom: 10px;
+  }
+  .acta-block-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: oklch(96.5% 0.01 240);
+    color: var(--color-ink-muted);
+  }
+  .acta-block-pill--gobierno {
+    background: var(--color-accent-xlight);
+    color: var(--color-accent);
+  }
+  .acta-block-pill--oposicion {
+    background: var(--color-red-bg);
+    color: var(--color-red);
+  }
+  .acta-proposal-grid,
+  .acta-conflict-list {
+    display: grid;
+    gap: 10px;
+  }
+  .acta-proposal-card,
+  .acta-conflict-card {
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-card);
+  }
+  .acta-proposal-card--government {
+    background: linear-gradient(180deg, var(--color-accent-xlight) 0%, var(--color-bg-card) 100%);
+  }
+  .acta-proposal-card--opposition {
+    background: linear-gradient(180deg, var(--color-red-bg) 0%, var(--color-bg-card) 100%);
+  }
+  .acta-proposal-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+  .acta-proposal-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .acta-proposal-value {
+    font-family: var(--font-serif);
+    font-size: 1.6rem;
+    line-height: 1;
+    color: var(--color-ink);
+  }
+  .acta-proposal-note,
+  .acta-proposal-foot {
+    font-size: 0.74rem;
+    color: var(--color-ink-muted);
+  }
+  .acta-proposal-track {
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 10px;
+    background: oklch(95% 0.008 240);
+  }
+  .acta-proposal-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-green) 100%);
+  }
+  .acta-proposal-foot {
+    margin-top: 7px;
+    line-height: 1.45;
+  }
+  .compact-empty {
+    padding: 18px 12px;
+  }
+
   /* ── Page grid ── */
   .page-grid {
     display: grid;
@@ -684,11 +1064,14 @@ const puntosOrdenDelDia  = [...puntosUrgentes, ...puntosResolutivos];
     .metric-cell:nth-child(4),
     .metric-cell:nth-child(5),
     .metric-cell:nth-child(6) { border-top: 1px solid var(--color-border); }
+    .acta-dashboard { grid-template-columns: 1fr; }
+    .acta-dashboard-panel--wide { grid-row: auto; }
     .page-grid { grid-template-columns: 1fr 220px; gap: 32px; }
   }
   @media (max-width: 768px) {
     .metrics-grid { grid-template-columns: repeat(3, 1fr); }
     .metric-cell:nth-child(3n) { border-right: none; }
+    .acta-featured-grid { grid-template-columns: 1fr; }
     .page-grid { grid-template-columns: 1fr; }
     .sidebar { order: -1; }
   }

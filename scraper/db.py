@@ -58,6 +58,10 @@ def insertar_punto(datos: dict) -> str:
     return res.data[0]["id"]
 
 
+def actualizar_punto(punto_id: str, datos: dict):
+    get_client().table("puntos").update(datos).eq("id", punto_id).execute()
+
+
 def insertar_votacion(datos: dict):
     get_client().table("votaciones").insert(datos).execute()
 

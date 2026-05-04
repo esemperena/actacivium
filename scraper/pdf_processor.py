@@ -447,6 +447,123 @@ def clasificar_comision(titulo: str) -> str:
     return "pleno"
 
 
+_RE_PROPONENTE = [
+    re.compile(
+        r"(?:presentada|formulada|propuesta)\s+por\s+el\s+grupo\s+(?:municipal\s+)?([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ/\-\. ]{2,50})",
+        re.I,
+    ),
+    re.compile(
+        r"(?:moción|proposición normativa|interpelación|pregunta(?:\s+oral|\s+escrita)?|ruego|declaración institucional).{0,120}?"
+        r"(?:grupo\s+municipal|municipal\s+taldea|taldea?)\s+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ/\-\. ]{2,50})",
+        re.I,
+    ),
+]
+
+_RELEVANCIA_KEYWORDS = {
+    2: [
+        "vivienda protegida", "desahuc", "alquiler", "inquilin", "residuos", "contamin",
+        "ruido", "tráfico", "movilidad", "impuesto", "ibi", "tasa", "presupuesto",
+        "servicios sociales", "dependencia", "violencia", "igualdad", "discrimin",
+        "sanidad", "educación", "escuela", "peatonal", "aparcamiento", "zona de bajas emisiones",
+    ],
+    1: [
+        "ordenanza", "pgou", "urban", "parcela", "riberas de loiola", "benta berri",
+        "museo", "cultura", "bomberos", "policía", "emergencias", "subvención",
+        "bonificación", "fiscal", "agua", "saneamiento", "basura",
+    ],
+}
+
+_CATEGORIA_RELEVANCIA = {
+    "vivienda": 2,
+    "movilidad": 2,
+    "medio_ambiente": 2,
+    "servicios_sociales": 2,
+    "derechos": 2,
+    "sanidad": 2,
+    "educacion": 2,
+    "urbanismo": 1,
+    "hacienda": 1,
+    "seguridad": 1,
+    "cultura": 1,
+}
+
+_TIPO_RELEVANCIA = {
+    "mocion": 1,
+    "proposicion_normativa": 1,
+    "aprobacion_definitiva": 1,
+    "aprobacion_inicial": 1,
+    "declaracion_institucional": 1,
+}
+
+
+def extraer_grupo_proponente_raw(titulo: str, texto: str = "") -> str | None:
+    """Intenta extraer el grupo proponente desde el título o el cuerpo del punto."""
+    if not titulo and not texto:
+        return None
+
+    # El título suele ser mucho más fiable que el cuerpo.
+    for patron in _RE_PROPONENTE:
+        m = patron.search(titulo or "")
+        if not m:
+            continue
+        grupo = re.split(r"[,.;)]", m.group(1).strip(), maxsplit=1)[0].strip()
+        grupo = re.sub(r"\s{2,}", " ", grupo).strip(" -")
+        if len(grupo) >= 2:
+            return grupo
+
+    contenido = (texto or "")[:800]
+    for patron in _RE_PROPONENTE[:1]:
+        m = patron.search(contenido)
+        if not m:
+            continue
+        grupo = re.split(r"[,.;)]", m.group(1).strip(), maxsplit=1)[0].strip()
+        grupo = re.sub(r"\s{2,}", " ", grupo).strip(" -")
+        if len(grupo) >= 2:
+            return grupo
+    return None
+
+
+def calcular_relevancia_social(
+    titulo: str,
+    *,
+    categoria: str | None = None,
+    tipo: str | None = None,
+    resultado: str | None = None,
+    unanimidad: bool | None = None,
+    resumen: str = "",
+    texto: str = "",
+) -> int:
+    """
+    Estima relevancia social (1-5) con reglas explícitas.
+    1 = trámite interno, 5 = impacto ciudadano claro o conflicto alto.
+    """
+    contenido = " ".join(part for part in [titulo, resumen, texto] if part).lower()
+    score = 1
+
+    if categoria:
+        score += _CATEGORIA_RELEVANCIA.get(categoria, 0)
+    if tipo:
+        score += _TIPO_RELEVANCIA.get(tipo, 0)
+
+    for bonus, keywords in _RELEVANCIA_KEYWORDS.items():
+        if any(kw in contenido for kw in keywords):
+            score += bonus
+            break
+
+    if resultado == "rechazado":
+        score += 1
+    if unanimidad is False:
+        score += 1
+
+    if tipo == "dar_cuenta" and categoria in {"gobernanza", "otro"} and score > 1:
+        score -= 1
+
+    if "nombramiento" in contenido or "delegación" in contenido or "compatibilidad" in contenido:
+        score = min(score, 2)
+
+    return max(1, min(5, score))
+
+
 # ── Resumen con Claude CLI ────────────────────────────────────────────────────
 
 PROMPT_RESUMEN_PLENO = """Eres el redactor de Acta Civium, una publicación ciudadana que analiza los plenos municipales desde una perspectiva social, ambiental y de responsabilidad pública.

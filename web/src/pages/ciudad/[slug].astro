@@ -7,6 +7,7 @@ import {
   getMunicipio,
   getCityDashboard,
   getPlenosByMunicipio,
+  supabase,
 } from '../../lib/supabase';
 
 const { slug } = Astro.params;
@@ -15,7 +16,7 @@ if (!municipio) return Astro.redirect("/");
 
 const page = Number(Astro.url.searchParams.get("page") ?? 1);
 const { data: plenos, count } = await getPlenosByMunicipio(municipio.id, page);
-const dashboard = await getCityDashboard(municipio.id);
+const dashboard = await getCityDashboard(municipio.id, municipio.partido_gobierno);
 const totalPages = Math.ceil((count ?? 0) / 20);
 
 let highlightsByPleno: Record<string, { titulo: string; categoria: string; resultado: string }[]> = {};
