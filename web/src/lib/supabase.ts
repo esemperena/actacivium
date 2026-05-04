@@ -102,6 +102,15 @@ export interface CityDashboardData {
     total: number;
     share: number;
   }>;
+  alignments: Array<{
+    partyA: string;
+    partyB: string;
+    colorA: string;
+    colorB: string;
+    comparedPoints: number;
+    sameVotes: number;
+    sameVoteShare: number;
+  }>;
   timeline: Array<{
     id: string;
     numero_acta: number;
@@ -201,6 +210,7 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
     composicion: [],
     categoryStats: [],
     resultStats: [],
+    alignments: [],
     timeline: [],
     highlights: [],
   };
@@ -237,10 +247,15 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
     const plenoIds = plenos.map((pleno) => pleno.id);
     const { data: puntosData } = await supabase
       .from("puntos")
-      .select("pleno_id, titulo, categoria, resultado, tipo, unanimidad")
+      .select("id, pleno_id, titulo, categoria, resultado, tipo, unanimidad")
       .in("pleno_id", plenoIds);
+    const { data: votacionesData } = await supabase
+      .from("votaciones")
+      .select("punto_id, votos_favor, votos_contra, abstenciones, partidos(siglas, color_hex)")
+      .in("punto_id", (puntosData ?? []).map((p) => p.id).filter(Boolean));
 
     const puntos = puntosData ?? [];
+    const votaciones = votacionesData ?? [];
     const totalPuntos = puntos.length;
     const totalPlenos = plenos.length;
     const totalAprobados = puntos.filter((p) => p.resultado === "aprobado").length;
@@ -286,6 +301,67 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
         };
       })
       .filter((row) => row.total > 0);
+
+    const stanceByPoint = new Map<string, Array<{ sigla: string; color: string; stance: string }>>();
+    for (const row of votaciones as any[]) {
+      const sigla = row.partidos?.siglas;
+      if (!sigla) continue;
+      const stance =
+        row.votos_favor > 0 ? "favor" :
+        row.votos_contra > 0 ? "contra" :
+        row.abstenciones > 0 ? "abstencion" :
+        null;
+      if (!stance) continue;
+      const color = row.partidos?.color_hex ?? "#888888";
+      const list = stanceByPoint.get(row.punto_id) ?? [];
+      list.push({ sigla, color, stance });
+      stanceByPoint.set(row.punto_id, list);
+    }
+
+    const pairStats = new Map<string, {
+      partyA: string;
+      partyB: string;
+      colorA: string;
+      colorB: string;
+      comparedPoints: number;
+      sameVotes: number;
+    }>();
+
+    for (const stances of stanceByPoint.values()) {
+      for (let i = 0; i < stances.length; i += 1) {
+        for (let j = i + 1; j < stances.length; j += 1) {
+          const left = stances[i];
+          const right = stances[j];
+          const [first, second] = [left, right].sort((a, b) => a.sigla.localeCompare(b.sigla));
+          const key = `${first.sigla}__${second.sigla}`;
+          const current = pairStats.get(key) ?? {
+            partyA: first.sigla,
+            partyB: second.sigla,
+            colorA: first.color,
+            colorB: second.color,
+            comparedPoints: 0,
+            sameVotes: 0,
+          };
+          current.comparedPoints += 1;
+          if (first.stance === second.stance) {
+            current.sameVotes += 1;
+          }
+          pairStats.set(key, current);
+        }
+      }
+    }
+
+    const alignments = Array.from(pairStats.values())
+      .filter((item) => item.comparedPoints >= 2)
+      .map((item) => ({
+        ...item,
+        sameVoteShare: item.comparedPoints > 0 ? item.sameVotes / item.comparedPoints : 0,
+      }))
+      .sort((a, b) =>
+        b.sameVoteShare - a.sameVoteShare ||
+        b.comparedPoints - a.comparedPoints ||
+        a.partyA.localeCompare(b.partyA)
+      );
 
     const timeline = plenos.map((pleno) => ({
       id: pleno.id,
@@ -349,6 +425,7 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
       composicion,
       categoryStats,
       resultStats,
+      alignments,
       timeline,
       highlights,
     };

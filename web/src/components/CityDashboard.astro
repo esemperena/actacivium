@@ -14,35 +14,11 @@ const totalConcejales =
   municipio.n_concejales ||
   0;
 
-const pointBarMax = Math.max(...dashboard.timeline.map((item) => item.total_puntos), 1);
-
-const formatDate = (value: string) =>
-  new Date(`${value}T12:00:00`).toLocaleDateString('es-ES', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-
 const compactDate = (value: string) =>
   new Date(`${value}T12:00:00`).toLocaleDateString('es-ES', {
     month: 'short',
     year: 'numeric',
   });
-
-const categoryLabels: Record<string, string> = {
-  urbanismo: 'Urbanismo',
-  vivienda: 'Vivienda',
-  hacienda: 'Hacienda',
-  medio_ambiente: 'Medio Ambiente',
-  servicios_sociales: 'Servicios Sociales',
-  movilidad: 'Movilidad',
-  cultura: 'Cultura',
-  gobernanza: 'Gobernanza',
-  derechos: 'Derechos',
-  seguridad: 'Seguridad',
-  educacion: 'Educacion',
-  otro: 'Otro',
-};
 
 const summaryCards = [
   {
@@ -80,6 +56,11 @@ const summaryCards = [
   },
 ];
 
+const topAgreements = dashboard.alignments.slice(0, 3);
+const topDisagreements = [...dashboard.alignments]
+  .sort((a, b) => a.sameVoteShare - b.sameVoteShare || b.comparedPoints - a.comparedPoints)
+  .slice(0, 3);
+
 const resultTone: Record<string, string> = {
   aprobado: 'var(--color-green)',
   rechazado: 'var(--color-red)',
@@ -106,7 +87,7 @@ const resultBg: Record<string, string> = {
       <h2 class="dashboard-title">Lo que esta pasando en el pleno de {municipio.nombre}</h2>
       <p class="dashboard-subtitle">
         Una vista rapida para entender volumen de actividad, temas dominantes,
-        nivel de consenso y asuntos que merecen seguimiento.
+        nivel de consenso y bloques de voto dentro del pleno.
       </p>
     </div>
 
@@ -210,73 +191,59 @@ const resultBg: Record<string, string> = {
 
     <section class="dashboard-panel">
       <div class="dashboard-panel-head">
-        <p class="dashboard-panel-kicker">Seguimiento</p>
-        <h3 class="dashboard-panel-title">Asuntos que conviene tener a la vista</h3>
+        <p class="dashboard-panel-kicker">Alineamientos</p>
+        <h3 class="dashboard-panel-title">Que partidos suelen votar parecido</h3>
       </div>
 
-      <div class="dashboard-highlights">
-        {dashboard.highlights.length > 0 ? (
-          dashboard.highlights.map((item) => (
-            <a href={`/acta/${item.plenoId}`} class="dashboard-highlight">
-              <div class="dashboard-highlight-top">
-                {item.categoria !== 'otro' ? (
-                  <span class:list={['badge', `badge-${item.categoria}`]}>
-                    {categoryLabels[item.categoria] ?? item.categoria}
-                  </span>
-                ) : (
-                  <span class="dashboard-highlight-plain">Acta {item.numeroActa}</span>
-                )}
-                <span class="dashboard-highlight-date">{formatDate(item.fecha)}</span>
-              </div>
-              <p class="dashboard-highlight-title">{item.titulo}</p>
-              <div class="dashboard-highlight-footer">
-                <span
-                  class="dashboard-highlight-state"
-                  style={`color:${resultTone[item.resultado] ?? 'var(--color-ink-subtle)'}`}
-                >
-                  {item.resultado.replace('_', ' ')}
+      <div class="dashboard-alignment-grid">
+        <div class="dashboard-alignment-col">
+          <p class="dashboard-alignment-label">Mas alineados</p>
+          {topAgreements.length > 0 ? topAgreements.map((item) => (
+            <article class="dashboard-alignment-card">
+              <div class="dashboard-alignment-parties">
+                <span class="dashboard-party-chip">
+                  <span class="dashboard-party-dot" style={`background:${item.colorA}`} />
+                  {item.partyA}
                 </span>
-                <span class="dashboard-highlight-link">Ver acta →</span>
+                <span class="dashboard-party-sep">·</span>
+                <span class="dashboard-party-chip">
+                  <span class="dashboard-party-dot" style={`background:${item.colorB}`} />
+                  {item.partyB}
+                </span>
               </div>
-            </a>
-          ))
-        ) : (
-          <p class="dashboard-empty">Todavia no hay asuntos destacados para mostrar.</p>
-        )}
+              <p class="dashboard-alignment-value">{Math.round(item.sameVoteShare * 100)}%</p>
+              <p class="dashboard-alignment-note">
+                Coinciden en {item.sameVotes} de {item.comparedPoints} votaciones comparables
+              </p>
+            </article>
+          )) : <p class="dashboard-empty">Todavia no hay suficientes votaciones comparables.</p>}
+        </div>
+
+        <div class="dashboard-alignment-col">
+          <p class="dashboard-alignment-label">Mas distantes</p>
+          {topDisagreements.length > 0 ? topDisagreements.map((item) => (
+            <article class="dashboard-alignment-card dashboard-alignment-card--muted">
+              <div class="dashboard-alignment-parties">
+                <span class="dashboard-party-chip">
+                  <span class="dashboard-party-dot" style={`background:${item.colorA}`} />
+                  {item.partyA}
+                </span>
+                <span class="dashboard-party-sep">·</span>
+                <span class="dashboard-party-chip">
+                  <span class="dashboard-party-dot" style={`background:${item.colorB}`} />
+                  {item.partyB}
+                </span>
+              </div>
+              <p class="dashboard-alignment-value">{Math.round(item.sameVoteShare * 100)}%</p>
+              <p class="dashboard-alignment-note">
+                Votan igual en {item.sameVotes} de {item.comparedPoints} votaciones comparables
+              </p>
+            </article>
+          )) : <p class="dashboard-empty">Todavia no hay suficientes votaciones comparables.</p>}
+        </div>
       </div>
     </section>
   </div>
-
-  <section class="dashboard-panel dashboard-panel--timeline">
-    <div class="dashboard-panel-head">
-      <p class="dashboard-panel-kicker">Ritmo</p>
-      <h3 class="dashboard-panel-title">Evolucion reciente del pleno</h3>
-    </div>
-
-    <div class="dashboard-timeline">
-      {dashboard.timeline.map((item) => (
-        <a href={`/acta/${item.id}`} class="dashboard-session">
-          <div class="dashboard-session-main">
-            <div>
-              <p class="dashboard-session-label">Acta {item.numero_acta}</p>
-              <p class="dashboard-session-date">{formatDate(item.fecha)}</p>
-            </div>
-            <div class="dashboard-session-metrics">
-              <span>{item.total_puntos} puntos</span>
-              {item.aprobados > 0 && <span class="resultado-aprobado">{item.aprobados} aprobados</span>}
-              {item.rechazados > 0 && <span class="resultado-rechazado">{item.rechazados} rechazados</span>}
-            </div>
-          </div>
-          <div class="dashboard-session-bar">
-            <div
-              class="dashboard-session-bar-fill"
-              style={`width:${Math.max((item.total_puntos / pointBarMax) * 100, 10)}%`}
-            />
-          </div>
-        </a>
-      ))}
-    </div>
-  </section>
 </section>
 
 <style>
@@ -367,11 +334,12 @@ const resultBg: Record<string, string> = {
 
   .dashboard-grid {
     display: grid;
-    grid-template-columns: 0.92fr 1.08fr;
+    grid-template-columns: 0.88fr 1.12fr;
     gap: 18px;
+    align-items: start;
   }
   .dashboard-panel {
-    padding: 22px 22px 20px;
+    padding: 20px;
   }
   .dashboard-panel-head {
     display: flex;
@@ -386,18 +354,15 @@ const resultBg: Record<string, string> = {
     letter-spacing: -0.02em;
     color: var(--color-ink);
   }
-  .dashboard-panel--composition {
-    grid-row: span 2;
-  }
   .dashboard-arc-wrap {
-    padding-bottom: 18px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--color-border);
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
   .dashboard-facts {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .dashboard-fact {
     display: flex;
@@ -495,115 +460,68 @@ const resultBg: Record<string, string> = {
     color: var(--color-ink-subtle);
   }
 
-  .dashboard-highlights {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .dashboard-highlight {
-    display: block;
-    padding: 14px 16px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--color-ink);
-    background: var(--color-bg-card);
-    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-  }
-  .dashboard-highlight:hover {
-    border-color: var(--color-border-strong);
-    box-shadow: var(--shadow-sm);
-    transform: translateY(-1px);
-  }
-  .dashboard-highlight-top,
-  .dashboard-highlight-footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    align-items: center;
-  }
-  .dashboard-highlight-plain,
-  .dashboard-highlight-date,
-  .dashboard-highlight-state {
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--color-ink-subtle);
-  }
-  .dashboard-highlight-title {
-    margin: 10px 0 12px;
-    font-family: var(--font-serif);
-    font-size: 1rem;
-    line-height: 1.35;
-    color: var(--color-ink);
-  }
-  .dashboard-highlight-link {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--color-accent);
-  }
-
-  .dashboard-panel--timeline {
-    padding-top: 20px;
-  }
-  .dashboard-timeline {
+  .dashboard-alignment-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
-  .dashboard-session {
-    display: block;
-    padding: 14px 15px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: var(--color-bg-card);
-    text-decoration: none;
-    color: var(--color-ink);
-    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-  }
-  .dashboard-session:hover {
-    border-color: var(--color-border-strong);
-    box-shadow: var(--shadow-sm);
-    transform: translateY(-1px);
-  }
-  .dashboard-session-main {
+  .dashboard-alignment-col {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
-  .dashboard-session-label {
+  .dashboard-alignment-label {
     font-size: 0.6875rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--color-ink-subtle);
   }
-  .dashboard-session-date {
-    margin-top: 3px;
-    font-family: var(--font-serif);
-    font-size: 1rem;
-    line-height: 1.2;
-    color: var(--color-ink);
+  .dashboard-alignment-card {
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-card);
   }
-  .dashboard-session-metrics {
+  .dashboard-alignment-card--muted {
+    background: oklch(99.4% 0.004 240);
+  }
+  .dashboard-alignment-parties {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 6px;
+    align-items: center;
+  }
+  .dashboard-party-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+  .dashboard-party-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .dashboard-party-sep {
     color: var(--color-ink-subtle);
   }
-  .dashboard-session-bar {
-    height: 8px;
-    margin-top: 14px;
-    border-radius: 999px;
-    background: var(--color-accent-xlight);
-    overflow: hidden;
+  .dashboard-alignment-value {
+    margin-top: 10px;
+    font-family: var(--font-serif);
+    font-size: 1.7rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--color-ink);
   }
-  .dashboard-session-bar-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-mid) 100%);
+  .dashboard-alignment-note {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
   }
 
   .dashboard-empty {
@@ -616,12 +534,6 @@ const resultBg: Record<string, string> = {
     .dashboard-hero,
     .dashboard-grid {
       grid-template-columns: 1fr;
-    }
-    .dashboard-panel--composition {
-      grid-row: auto;
-    }
-    .dashboard-timeline {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
@@ -636,7 +548,7 @@ const resultBg: Record<string, string> = {
     }
     .dashboard-stat-grid,
     .dashboard-results,
-    .dashboard-timeline {
+    .dashboard-alignment-grid {
       grid-template-columns: 1fr;
     }
     .dashboard-stat {
@@ -652,8 +564,7 @@ const resultBg: Record<string, string> = {
       border-bottom: none;
     }
     .dashboard-bar-meta,
-    .dashboard-highlight-top,
-    .dashboard-highlight-footer {
+    .dashboard-alignment-parties {
       flex-wrap: wrap;
     }
   }
