@@ -1,0 +1,660 @@
+---
+import ParlamentArc from './ParlamentArc';
+import type { CityDashboardData, Municipio } from '../lib/supabase';
+
+interface Props {
+  municipio: Municipio;
+  dashboard: CityDashboardData;
+}
+
+const { municipio, dashboard } = Astro.props;
+
+const totalConcejales =
+  dashboard.composicion.reduce((sum, item) => sum + item.concejales, 0) ||
+  municipio.n_concejales ||
+  0;
+
+const pointBarMax = Math.max(...dashboard.timeline.map((item) => item.total_puntos), 1);
+
+const formatDate = (value: string) =>
+  new Date(`${value}T12:00:00`).toLocaleDateString('es-ES', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+const compactDate = (value: string) =>
+  new Date(`${value}T12:00:00`).toLocaleDateString('es-ES', {
+    month: 'short',
+    year: 'numeric',
+  });
+
+const categoryLabels: Record<string, string> = {
+  urbanismo: 'Urbanismo',
+  vivienda: 'Vivienda',
+  hacienda: 'Hacienda',
+  medio_ambiente: 'Medio Ambiente',
+  servicios_sociales: 'Servicios Sociales',
+  movilidad: 'Movilidad',
+  cultura: 'Cultura',
+  gobernanza: 'Gobernanza',
+  derechos: 'Derechos',
+  seguridad: 'Seguridad',
+  educacion: 'Educacion',
+  otro: 'Otro',
+};
+
+const summaryCards = [
+  {
+    label: 'Plenos analizados',
+    value: dashboard.summary.totalPlenos,
+    note:
+      dashboard.summary.firstDate && dashboard.summary.lastDate
+        ? `${compactDate(dashboard.summary.firstDate)} → ${compactDate(dashboard.summary.lastDate)}`
+        : 'Sin cobertura todavia',
+    tone: '',
+  },
+  {
+    label: 'Puntos tratados',
+    value: dashboard.summary.totalPuntos,
+    note: `${dashboard.summary.avgPuntos.toFixed(1)} por sesion`,
+    tone: '',
+  },
+  {
+    label: 'Decisiones aprobadas',
+    value: dashboard.summary.totalAprobados,
+    note:
+      dashboard.summary.totalPuntos > 0
+        ? `${Math.round((dashboard.summary.totalAprobados / dashboard.summary.totalPuntos) * 100)}% del total`
+        : 'Sin datos',
+    tone: 'dashboard-stat--good',
+  },
+  {
+    label: 'Votaciones unanimes',
+    value: dashboard.summary.totalUnanimes,
+    note:
+      dashboard.summary.attendanceAvg !== null
+        ? `${dashboard.summary.attendanceAvg.toFixed(1)} concejales de media`
+        : 'Asistencia no disponible',
+    tone: 'dashboard-stat--soft',
+  },
+];
+
+const resultTone: Record<string, string> = {
+  aprobado: 'var(--color-green)',
+  rechazado: 'var(--color-red)',
+  enterado: 'var(--color-ink-subtle)',
+  sin_votacion: 'var(--color-amber)',
+  aplazado: 'var(--color-amber)',
+  retirado: 'var(--color-ink-subtle)',
+};
+
+const resultBg: Record<string, string> = {
+  aprobado: 'var(--color-green-bg)',
+  rechazado: 'var(--color-red-bg)',
+  enterado: 'var(--color-accent-xlight)',
+  sin_votacion: 'var(--color-amber-bg)',
+  aplazado: 'var(--color-amber-bg)',
+  retirado: 'var(--color-accent-xlight)',
+};
+---
+
+<section class="dashboard-shell">
+  <div class="dashboard-hero">
+    <div class="dashboard-hero-copy">
+      <p class="dashboard-kicker">Radar municipal</p>
+      <h2 class="dashboard-title">Lo que esta pasando en el pleno de {municipio.nombre}</h2>
+      <p class="dashboard-subtitle">
+        Una vista rapida para entender volumen de actividad, temas dominantes,
+        nivel de consenso y asuntos que merecen seguimiento.
+      </p>
+    </div>
+
+    <div class="dashboard-stat-grid">
+      {summaryCards.map((card) => (
+        <article class:list={['dashboard-stat', card.tone]}>
+          <p class="dashboard-stat-label">{card.label}</p>
+          <p class="dashboard-stat-value">{card.value}</p>
+          <p class="dashboard-stat-note">{card.note}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <section class="dashboard-panel dashboard-panel--composition">
+      <div class="dashboard-panel-head">
+        <p class="dashboard-panel-kicker">Composicion</p>
+        <h3 class="dashboard-panel-title">Quien ocupa el pleno</h3>
+      </div>
+
+      {dashboard.composicion.length > 0 ? (
+        <Fragment>
+          <div class="dashboard-arc-wrap">
+            <ParlamentArc composicion={dashboard.composicion} total={totalConcejales} client:load />
+          </div>
+          <div class="dashboard-facts">
+            {municipio.partido_gobierno && (
+              <div class="dashboard-fact">
+                <span class="dashboard-fact-label">Gobierno</span>
+                <span class="dashboard-fact-value">{municipio.partido_gobierno}</span>
+              </div>
+            )}
+            {municipio.alcalde && (
+              <div class="dashboard-fact">
+                <span class="dashboard-fact-label">Alcaldia</span>
+                <span class="dashboard-fact-value">{municipio.alcalde}</span>
+              </div>
+            )}
+            {municipio.poblacion && (
+              <div class="dashboard-fact">
+                <span class="dashboard-fact-label">Poblacion</span>
+                <span class="dashboard-fact-value">{municipio.poblacion.toLocaleString('es-ES')} hab.</span>
+              </div>
+            )}
+          </div>
+        </Fragment>
+      ) : (
+        <p class="dashboard-empty">La composicion del pleno todavia no esta disponible.</p>
+      )}
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <p class="dashboard-panel-kicker">Agenda</p>
+        <h3 class="dashboard-panel-title">Temas que mas ocupan al Ayuntamiento</h3>
+      </div>
+
+      <div class="dashboard-bars">
+        {dashboard.categoryStats.map((item) => (
+          <div class="dashboard-bar-row">
+            <div class="dashboard-bar-meta">
+              <span class:list={['badge', `badge-${item.categoria}`]}>{item.label}</span>
+              <span class="dashboard-bar-count">{item.total} puntos</span>
+            </div>
+            <div class="dashboard-bar-track">
+              <div class="dashboard-bar-fill" style={`width:${Math.max(item.share * 100, 8)}%`} />
+            </div>
+            <span class="dashboard-bar-share">{Math.round(item.share * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <p class="dashboard-panel-kicker">Resultado</p>
+        <h3 class="dashboard-panel-title">Como terminan los asuntos que llegan al pleno</h3>
+      </div>
+
+      <div class="dashboard-results">
+        {dashboard.resultStats.map((item) => (
+          <article class="dashboard-result-card">
+            <div class="dashboard-result-top">
+              <span class="dashboard-result-label">{item.label}</span>
+              <span class="dashboard-result-value" style={`color:${resultTone[item.resultado] ?? 'var(--color-ink)'}`}>
+                {item.total}
+              </span>
+            </div>
+            <div class="dashboard-result-track" style={`background:${resultBg[item.resultado] ?? 'var(--color-accent-xlight)'}`}>
+              <div
+                class="dashboard-result-fill"
+                style={`width:${Math.max(item.share * 100, 6)}%; background:${resultTone[item.resultado] ?? 'var(--color-ink)'}`}
+              />
+            </div>
+            <p class="dashboard-result-note">{Math.round(item.share * 100)}% del total de puntos</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <p class="dashboard-panel-kicker">Seguimiento</p>
+        <h3 class="dashboard-panel-title">Asuntos que conviene tener a la vista</h3>
+      </div>
+
+      <div class="dashboard-highlights">
+        {dashboard.highlights.length > 0 ? (
+          dashboard.highlights.map((item) => (
+            <a href={`/acta/${item.plenoId}`} class="dashboard-highlight">
+              <div class="dashboard-highlight-top">
+                {item.categoria !== 'otro' ? (
+                  <span class:list={['badge', `badge-${item.categoria}`]}>
+                    {categoryLabels[item.categoria] ?? item.categoria}
+                  </span>
+                ) : (
+                  <span class="dashboard-highlight-plain">Acta {item.numeroActa}</span>
+                )}
+                <span class="dashboard-highlight-date">{formatDate(item.fecha)}</span>
+              </div>
+              <p class="dashboard-highlight-title">{item.titulo}</p>
+              <div class="dashboard-highlight-footer">
+                <span
+                  class="dashboard-highlight-state"
+                  style={`color:${resultTone[item.resultado] ?? 'var(--color-ink-subtle)'}`}
+                >
+                  {item.resultado.replace('_', ' ')}
+                </span>
+                <span class="dashboard-highlight-link">Ver acta →</span>
+              </div>
+            </a>
+          ))
+        ) : (
+          <p class="dashboard-empty">Todavia no hay asuntos destacados para mostrar.</p>
+        )}
+      </div>
+    </section>
+  </div>
+
+  <section class="dashboard-panel dashboard-panel--timeline">
+    <div class="dashboard-panel-head">
+      <p class="dashboard-panel-kicker">Ritmo</p>
+      <h3 class="dashboard-panel-title">Evolucion reciente del pleno</h3>
+    </div>
+
+    <div class="dashboard-timeline">
+      {dashboard.timeline.map((item) => (
+        <a href={`/acta/${item.id}`} class="dashboard-session">
+          <div class="dashboard-session-main">
+            <div>
+              <p class="dashboard-session-label">Acta {item.numero_acta}</p>
+              <p class="dashboard-session-date">{formatDate(item.fecha)}</p>
+            </div>
+            <div class="dashboard-session-metrics">
+              <span>{item.total_puntos} puntos</span>
+              {item.aprobados > 0 && <span class="resultado-aprobado">{item.aprobados} aprobados</span>}
+              {item.rechazados > 0 && <span class="resultado-rechazado">{item.rechazados} rechazados</span>}
+            </div>
+          </div>
+          <div class="dashboard-session-bar">
+            <div
+              class="dashboard-session-bar-fill"
+              style={`width:${Math.max((item.total_puntos / pointBarMax) * 100, 10)}%`}
+            />
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+</section>
+
+<style>
+  .dashboard-shell {
+    margin-bottom: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .dashboard-hero {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 18px;
+    align-items: stretch;
+  }
+  .dashboard-hero-copy,
+  .dashboard-stat-grid,
+  .dashboard-panel {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+  }
+  .dashboard-hero-copy {
+    padding: 26px 28px;
+    background:
+      linear-gradient(135deg, oklch(99% 0.012 160) 0%, oklch(100% 0 0) 65%),
+      var(--color-bg-card);
+  }
+  .dashboard-kicker,
+  .dashboard-panel-kicker {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+  .dashboard-title {
+    margin-top: 10px;
+    font-family: var(--font-serif);
+    font-size: clamp(1.5rem, 3vw, 2.35rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: var(--color-ink);
+    max-width: 12ch;
+  }
+  .dashboard-subtitle {
+    margin-top: 14px;
+    max-width: 56ch;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+  }
+  .dashboard-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+  }
+  .dashboard-stat {
+    padding: 22px 20px 18px;
+    border-right: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .dashboard-stat:nth-child(2n) { border-right: none; }
+  .dashboard-stat:nth-last-child(-n+2) { border-bottom: none; }
+  .dashboard-stat-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+  .dashboard-stat-value {
+    margin-top: 10px;
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--color-ink);
+  }
+  .dashboard-stat-note {
+    margin-top: 10px;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--color-ink-muted);
+  }
+  .dashboard-stat--good .dashboard-stat-value { color: var(--color-green); }
+  .dashboard-stat--soft .dashboard-stat-value { color: var(--color-accent); }
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 0.92fr 1.08fr;
+    gap: 18px;
+  }
+  .dashboard-panel {
+    padding: 22px 22px 20px;
+  }
+  .dashboard-panel-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .dashboard-panel-title {
+    font-family: var(--font-serif);
+    font-size: 1.2rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+  .dashboard-panel--composition {
+    grid-row: span 2;
+  }
+  .dashboard-arc-wrap {
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 18px;
+  }
+  .dashboard-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .dashboard-fact {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: baseline;
+  }
+  .dashboard-fact-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+  .dashboard-fact-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    text-align: right;
+  }
+
+  .dashboard-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .dashboard-bar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .dashboard-bar-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+  }
+  .dashboard-bar-count,
+  .dashboard-bar-share {
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+  }
+  .dashboard-bar-track {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--color-accent-xlight);
+    overflow: hidden;
+  }
+  .dashboard-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-mid) 100%);
+  }
+
+  .dashboard-results {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .dashboard-result-card {
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: oklch(99.6% 0.004 195);
+  }
+  .dashboard-result-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .dashboard-result-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-ink-muted);
+  }
+  .dashboard-result-value {
+    font-family: var(--font-serif);
+    font-size: 1.4rem;
+    line-height: 1;
+  }
+  .dashboard-result-track {
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .dashboard-result-fill {
+    height: 100%;
+    border-radius: 999px;
+  }
+  .dashboard-result-note {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+  }
+
+  .dashboard-highlights {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .dashboard-highlight {
+    display: block;
+    padding: 14px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--color-ink);
+    background: var(--color-bg-card);
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  }
+  .dashboard-highlight:hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+  .dashboard-highlight-top,
+  .dashboard-highlight-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+  }
+  .dashboard-highlight-plain,
+  .dashboard-highlight-date,
+  .dashboard-highlight-state {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+  .dashboard-highlight-title {
+    margin: 10px 0 12px;
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.35;
+    color: var(--color-ink);
+  }
+  .dashboard-highlight-link {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-accent);
+  }
+
+  .dashboard-panel--timeline {
+    padding-top: 20px;
+  }
+  .dashboard-timeline {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .dashboard-session {
+    display: block;
+    padding: 14px 15px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-card);
+    text-decoration: none;
+    color: var(--color-ink);
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  }
+  .dashboard-session:hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+  .dashboard-session-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .dashboard-session-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+  .dashboard-session-date {
+    margin-top: 3px;
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.2;
+    color: var(--color-ink);
+  }
+  .dashboard-session-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+  }
+  .dashboard-session-bar {
+    height: 8px;
+    margin-top: 14px;
+    border-radius: 999px;
+    background: var(--color-accent-xlight);
+    overflow: hidden;
+  }
+  .dashboard-session-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-mid) 100%);
+  }
+
+  .dashboard-empty {
+    font-size: 0.875rem;
+    color: var(--color-ink-muted);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 1024px) {
+    .dashboard-hero,
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+    .dashboard-panel--composition {
+      grid-row: auto;
+    }
+    .dashboard-timeline {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 768px) {
+    .dashboard-shell {
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .dashboard-hero-copy,
+    .dashboard-panel {
+      padding: 18px;
+    }
+    .dashboard-stat-grid,
+    .dashboard-results,
+    .dashboard-timeline {
+      grid-template-columns: 1fr;
+    }
+    .dashboard-stat {
+      border-right: none;
+    }
+    .dashboard-stat:not(:last-child) {
+      border-bottom: 1px solid var(--color-border);
+    }
+    .dashboard-stat:nth-last-child(-n+2) {
+      border-bottom: 1px solid var(--color-border);
+    }
+    .dashboard-stat:last-child {
+      border-bottom: none;
+    }
+    .dashboard-bar-meta,
+    .dashboard-highlight-top,
+    .dashboard-highlight-footer {
+      flex-wrap: wrap;
+    }
+  }
+</style>

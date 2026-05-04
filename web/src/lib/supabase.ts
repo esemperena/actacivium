@@ -73,6 +73,56 @@ export interface AsistenciaPartido {
   total: number;
 }
 
+export interface CityDashboardData {
+  summary: {
+    totalPlenos: number;
+    totalPuntos: number;
+    totalAprobados: number;
+    totalRechazados: number;
+    totalUnanimes: number;
+    avgPuntos: number;
+    attendanceAvg: number | null;
+    firstDate: string | null;
+    lastDate: string | null;
+  };
+  composicion: Array<{
+    sigla: string;
+    color: string;
+    concejales: number;
+  }>;
+  categoryStats: Array<{
+    categoria: string;
+    label: string;
+    total: number;
+    share: number;
+  }>;
+  resultStats: Array<{
+    resultado: string;
+    label: string;
+    total: number;
+    share: number;
+  }>;
+  timeline: Array<{
+    id: string;
+    numero_acta: number;
+    fecha: string;
+    tipo_sesion: string;
+    total_puntos: number;
+    aprobados: number;
+    rechazados: number;
+    unanimes: number;
+    n_asistentes: number | null;
+  }>;
+  highlights: Array<{
+    plenoId: string;
+    numeroActa: number;
+    fecha: string;
+    titulo: string;
+    categoria: string;
+    resultado: string;
+  }>;
+}
+
 // ── Municipios ─────────────────────────────────────────────────────────────
 
 export async function getMunicipios(): Promise<Municipio[]> {
@@ -132,6 +182,178 @@ export async function getStatsMunicipio(municipioId: string) {
     };
   } catch {
     return { totalPlenos: 0, ultimaFecha: null, totalPuntos: 0 };
+  }
+}
+
+export async function getCityDashboard(municipioId: string): Promise<CityDashboardData> {
+  const empty: CityDashboardData = {
+    summary: {
+      totalPlenos: 0,
+      totalPuntos: 0,
+      totalAprobados: 0,
+      totalRechazados: 0,
+      totalUnanimes: 0,
+      avgPuntos: 0,
+      attendanceAvg: null,
+      firstDate: null,
+      lastDate: null,
+    },
+    composicion: [],
+    categoryStats: [],
+    resultStats: [],
+    timeline: [],
+    highlights: [],
+  };
+
+  try {
+    const [plenosRes, partidosRes] = await Promise.all([
+      supabase
+        .from("v_plenos")
+        .select("id, numero_acta, fecha, tipo_sesion, total_puntos, aprobados, rechazados, unanimes, n_asistentes")
+        .eq("municipio_id", municipioId)
+        .eq("estado", "procesado")
+        .order("fecha", { ascending: false }),
+      supabase
+        .from("partidos")
+        .select("siglas, color_hex, n_concejales")
+        .eq("municipio_id", municipioId)
+        .eq("activo", true)
+        .order("n_concejales", { ascending: false }),
+    ]);
+
+    const plenos = plenosRes.data ?? [];
+    const composicion = (partidosRes.data ?? [])
+      .filter((row) => (row.n_concejales ?? 0) > 0)
+      .map((row) => ({
+        sigla: row.siglas,
+        color: row.color_hex ?? "#888888",
+        concejales: row.n_concejales ?? 0,
+      }));
+
+    if (plenos.length === 0) {
+      return { ...empty, composicion };
+    }
+
+    const plenoIds = plenos.map((pleno) => pleno.id);
+    const { data: puntosData } = await supabase
+      .from("puntos")
+      .select("pleno_id, titulo, categoria, resultado, tipo, unanimidad")
+      .in("pleno_id", plenoIds);
+
+    const puntos = puntosData ?? [];
+    const totalPuntos = puntos.length;
+    const totalPlenos = plenos.length;
+    const totalAprobados = puntos.filter((p) => p.resultado === "aprobado").length;
+    const totalRechazados = puntos.filter((p) => p.resultado === "rechazado").length;
+    const totalUnanimes = puntos.filter((p) => p.unanimidad === true).length;
+    const attendance = plenos
+      .map((p) => p.n_asistentes)
+      .filter((value): value is number => typeof value === "number");
+
+    const categoryCounts: Record<string, number> = {};
+    for (const punto of puntos) {
+      const categoria = punto.categoria ?? "otro";
+      categoryCounts[categoria] = (categoryCounts[categoria] ?? 0) + 1;
+    }
+
+    const categoryStats = Object.entries(categoryCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([categoria, total]) => ({
+        categoria,
+        label: CATEGORIAS[categoria] ?? categoria,
+        total,
+        share: totalPuntos > 0 ? total / totalPuntos : 0,
+      }));
+
+    const resultEntries = [
+      ["aprobado", "Aprobados"],
+      ["rechazado", "Rechazados"],
+      ["enterado", "Enterados"],
+      ["sin_votacion", "Sin votacion"],
+      ["aplazado", "Aplazados"],
+      ["retirado", "Retirados"],
+    ] as const;
+
+    const resultStats = resultEntries
+      .map(([resultado, label]) => {
+        const total = puntos.filter((p) => p.resultado === resultado).length;
+        return {
+          resultado,
+          label,
+          total,
+          share: totalPuntos > 0 ? total / totalPuntos : 0,
+        };
+      })
+      .filter((row) => row.total > 0);
+
+    const timeline = plenos.map((pleno) => ({
+      id: pleno.id,
+      numero_acta: pleno.numero_acta,
+      fecha: pleno.fecha,
+      tipo_sesion: pleno.tipo_sesion,
+      total_puntos: pleno.total_puntos,
+      aprobados: pleno.aprobados,
+      rechazados: pleno.rechazados,
+      unanimes: pleno.unanimes,
+      n_asistentes: pleno.n_asistentes ?? null,
+    }));
+
+    const highlights = puntos
+      .map((punto) => {
+        const pleno = plenos.find((item) => item.id === punto.pleno_id);
+        return {
+          plenoId: punto.pleno_id,
+          numeroActa: pleno?.numero_acta ?? 0,
+          fecha: pleno?.fecha ?? "",
+          titulo: punto.titulo,
+          categoria: punto.categoria ?? "otro",
+          resultado: punto.resultado ?? "sin_votacion",
+          tipo: punto.tipo ?? "otro",
+        };
+      })
+      .filter((item) => item.fecha)
+      .sort((a, b) => {
+        const score = (row: typeof a) => {
+          const categoryBonus = row.categoria !== "otro" ? 3 : 0;
+          const resultBonus = row.resultado === "rechazado" ? 3 : row.resultado === "aprobado" ? 2 : 0;
+          const typeBonus = row.tipo === "mocion" ? 2 : row.tipo === "aprobacion_definitiva" ? 1 : 0;
+          return categoryBonus + resultBonus + typeBonus;
+        };
+        return b.fecha.localeCompare(a.fecha) || score(b) - score(a);
+      })
+      .slice(0, 5)
+      .map(({ plenoId, numeroActa, fecha, titulo, categoria, resultado }) => ({
+        plenoId,
+        numeroActa,
+        fecha,
+        titulo,
+        categoria,
+        resultado,
+      }));
+
+    return {
+      summary: {
+        totalPlenos,
+        totalPuntos,
+        totalAprobados,
+        totalRechazados,
+        totalUnanimes,
+        avgPuntos: totalPlenos > 0 ? totalPuntos / totalPlenos : 0,
+        attendanceAvg: attendance.length
+          ? attendance.reduce((sum, value) => sum + value, 0) / attendance.length
+          : null,
+        firstDate: plenos[plenos.length - 1]?.fecha ?? null,
+        lastDate: plenos[0]?.fecha ?? null,
+      },
+      composicion,
+      categoryStats,
+      resultStats,
+      timeline,
+      highlights,
+    };
+  } catch {
+    return empty;
   }
 }
 

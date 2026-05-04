@@ -1,12 +1,12 @@
 ---
 export const prerender = false;
 import Base from '../../layouts/Base.astro';
+import CityDashboard from '../../components/CityDashboard.astro';
 import PlenoCard from '../../components/PlenoCard.astro';
 import {
   getMunicipio,
+  getCityDashboard,
   getPlenosByMunicipio,
-  supabase,
-  CATEGORIAS,
 } from '../../lib/supabase';
 
 const { slug } = Astro.params;
@@ -15,11 +15,9 @@ if (!municipio) return Astro.redirect("/");
 
 const page = Number(Astro.url.searchParams.get("page") ?? 1);
 const { data: plenos, count } = await getPlenosByMunicipio(municipio.id, page);
+const dashboard = await getCityDashboard(municipio.id);
 const totalPages = Math.ceil((count ?? 0) / 20);
 
-// ── Stats + highlights en una sola query ──────────────────────────────────
-let totalAprobados = 0, totalRechazados = 0, totalPuntos = 0;
-let catStats: { categoria: string; total: number }[] = [];
 let highlightsByPleno: Record<string, { titulo: string; categoria: string; resultado: string }[]> = {};
 
 try {
@@ -31,19 +29,6 @@ try {
       .in("pleno_id", ids);
 
     const allPts = pts ?? [];
-    totalPuntos     = allPts.length;
-    totalAprobados  = allPts.filter((p) => p.resultado === "aprobado").length;
-    totalRechazados = allPts.filter((p) => p.resultado === "rechazado").length;
-
-    const counts: Record<string, number> = {};
-    for (const row of allPts.filter((p) => p.categoria && p.categoria !== "otro")) {
-      counts[row.categoria] = (counts[row.categoria] ?? 0) + 1;
-    }
-    catStats = Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([categoria, total]) => ({ categoria, total }));
-
     const byRelevance: Record<string, typeof allPts> = {};
     for (const pt of allPts.filter(p => p.tipo !== "dar_cuenta" && p.titulo)) {
       if (!byRelevance[pt.pleno_id]) byRelevance[pt.pleno_id] = [];
@@ -101,132 +86,39 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
     <a href="/newsletter" class="city-bar-cta">Newsletter →</a>
   </div>
 
-  <!-- ── MÉTRICAS ──────────────────────────────────────────────────────── -->
-  <section class="metrics-grid mb-10">
-    {[
-      { label: "Actas analizadas",   value: count,           cls: "" },
-      { label: "Puntos tratados",    value: totalPuntos,     cls: "" },
-      { label: "Aprobados",          value: totalAprobados,  cls: "metrics-green" },
-      { label: "Rechazados",         value: totalRechazados, cls: "metrics-red" },
-      { label: "Concejales",         value: municipio.n_concejales ?? "—", cls: "" },
-      { label: "Gobierno",
-        value: municipio.partido_gobierno ?? "—",
-        sub: municipio.alcalde ? municipio.alcalde.split(" ").slice(-2).join(" ") : "",
-        isText: true },
-    ].map(({ label, value, sub, cls, isText }) => (
-      <div class="metrics-cell">
-        <p class:list={["metrics-value", cls, isText && "metrics-value--text"]}>{value}</p>
-        {sub && <p class="metrics-sub">{sub}</p>}
-        <p class="metrics-label">{label}</p>
-      </div>
-    ))}
-  </section>
+  <CityDashboard municipio={municipio} dashboard={dashboard} />
 
-  <div class="page-grid">
-
-    <!-- ── LISTA DE ACTAS ─────────────────────────────────────────────── -->
-    <div>
-      <div class="section-rule mb-6">
-        <span class="text-xs font-bold uppercase tracking-widest">
-          Actas de plenos · {count} {(count ?? 0) === 1 ? "sesión" : "sesiones"}
-        </span>
-      </div>
-
-      {plenos.length === 0 ? (
-        <p class="text-[var(--color-ink-muted)] text-sm py-8 text-center border border-dashed border-[var(--color-border)]">
-          No hay actas procesadas todavía.
-        </p>
-      ) : (
-        <>
-          <div class="plenos-list">
-            {plenos.map((p, i) => <PlenoCard pleno={p} featured={i === 0 && page === 1} highlights={highlightsByPleno[p.id]} />)}
-          </div>
-
-          {totalPages > 1 && (
-            <nav class="flex justify-between items-center mt-8 pt-4 border-t border-[var(--color-border)]">
-              {page > 1
-                ? <a href={`/ciudad/${slug}?page=${page - 1}`} class="text-sm font-semibold hover:underline">← Más recientes</a>
-                : <span />}
-              <span class="text-xs text-[var(--color-ink-muted)]">Página {page} de {totalPages}</span>
-              {page < totalPages
-                ? <a href={`/ciudad/${slug}?page=${page + 1}`} class="text-sm font-semibold hover:underline">Anteriores →</a>
-                : <span />}
-            </nav>
-          )}
-        </>
-      )}
+  <section>
+    <div class="section-rule mb-6">
+      <span class="text-xs font-bold uppercase tracking-widest">
+        Archivo de actas · {count} {(count ?? 0) === 1 ? "sesión" : "sesiones"}
+      </span>
     </div>
 
-    <!-- ── SIDEBAR ────────────────────────────────────────────────────── -->
-    <aside class="sidebar-col">
-
-      <!-- Ficha del municipio -->
-      <div class="sidebar-card">
-        <p class="sidebar-label">Ficha</p>
-        <dl class="space-y-3">
-          {municipio.alcalde && (
-            <div>
-              <dt class="sidebar-dt">Alcalde/sa</dt>
-              <dd class="sidebar-dd">{municipio.alcalde}</dd>
-            </div>
-          )}
-          {municipio.partido_gobierno && (
-            <div>
-              <dt class="sidebar-dt">Partido de gobierno</dt>
-              <dd class="sidebar-dd flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full inline-block shrink-0"
-                      style={`background: ${municipio.color_gobierno ?? '#888'}`} />
-                {municipio.partido_gobierno}
-              </dd>
-            </div>
-          )}
-          {municipio.n_concejales && (
-            <div>
-              <dt class="sidebar-dt">Concejales</dt>
-              <dd class="sidebar-dd">{municipio.n_concejales}</dd>
-            </div>
-          )}
-          {municipio.poblacion && (
-            <div>
-              <dt class="sidebar-dt">Población</dt>
-              <dd class="sidebar-dd">{municipio.poblacion.toLocaleString("es-ES")} hab.</dd>
-            </div>
-          )}
-          {municipio.web_oficial && (
-            <div class="pt-1">
-              <a href={municipio.web_oficial} target="_blank" rel="noopener noreferrer"
-                 class="text-[0.8125rem] font-semibold text-[var(--color-accent)] hover:underline">
-                Web oficial del Ayuntamiento →
-              </a>
-            </div>
-          )}
-        </dl>
-      </div>
-
-      <!-- Temas más tratados -->
-      {catStats.length > 0 && (
-        <div class="sidebar-card">
-          <p class="sidebar-label">Temas más tratados</p>
-          <div>
-            {catStats.map(({ categoria, total }) => (
-              <a
-                href={`/temas/${categoria}`}
-                class="sidebar-tema-row"
-              >
-                <span class:list={["badge", `badge-${categoria}`]}>
-                  {CATEGORIAS[categoria] ?? categoria}
-                </span>
-                <span class="sidebar-tema-count">
-                  {total} {total === 1 ? "punto" : "puntos"}
-                </span>
-              </a>
-            ))}
-          </div>
+    {plenos.length === 0 ? (
+      <p class="text-[var(--color-ink-muted)] text-sm py-8 text-center border border-dashed border-[var(--color-border)]">
+        No hay actas procesadas todavía.
+      </p>
+    ) : (
+      <>
+        <div class="plenos-list">
+          {plenos.map((p, i) => <PlenoCard pleno={p} featured={i === 0 && page === 1} highlights={highlightsByPleno[p.id]} />)}
         </div>
-      )}
 
-    </aside>
-  </div>
+        {totalPages > 1 && (
+          <nav class="flex justify-between items-center mt-8 pt-4 border-t border-[var(--color-border)]">
+            {page > 1
+              ? <a href={`/ciudad/${slug}?page=${page - 1}`} class="text-sm font-semibold hover:underline">← Más recientes</a>
+              : <span />}
+            <span class="text-xs text-[var(--color-ink-muted)]">Página {page} de {totalPages}</span>
+            {page < totalPages
+              ? <a href={`/ciudad/${slug}?page=${page + 1}`} class="text-sm font-semibold hover:underline">Anteriores →</a>
+              : <span />}
+          </nav>
+        )}
+      </>
+    )}
+  </section>
 
 </Base>
 
@@ -302,60 +194,6 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
   }
   .city-bar-cta:hover { color: var(--color-accent); }
 
-  /* ── Metrics grid ───────────────────────────────────────────────────── */
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .metrics-cell {
-    text-align: center;
-    padding: 20px 12px;
-    background: var(--color-bg-card);
-    border-right: 1px solid var(--color-border);
-  }
-  .metrics-cell:last-child { border-right: none; }
-  .metrics-value {
-    font-family: var(--font-serif);
-    font-size: 1.875rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: var(--color-ink);
-    line-height: 1;
-  }
-  .metrics-value--text {
-    font-family: var(--font-sans);
-    font-size: 0.9375rem;
-    font-weight: 600;
-    letter-spacing: 0;
-    line-height: 1.2;
-  }
-  .metrics-green { color: var(--color-green); }
-  .metrics-red   { color: var(--color-red); }
-  .metrics-sub {
-    font-size: 0.6875rem;
-    color: var(--color-ink-subtle);
-    margin-top: 2px;
-  }
-  .metrics-label {
-    font-size: 0.625rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--color-ink-subtle);
-    margin-top: 6px;
-  }
-
-  /* ── Page grid ──────────────────────────────────────────────────────── */
-  .page-grid {
-    display: grid;
-    grid-template-columns: 1fr 260px;
-    gap: 48px;
-    align-items: start;
-  }
-
   /* ── Pleno list ─────────────────────────────────────────────────────── */
   .plenos-list {
     display: flex;
@@ -363,76 +201,13 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
     gap: 12px;
   }
 
-  /* ── Sidebar ────────────────────────────────────────────────────────── */
-  .sidebar-col { display: flex; flex-direction: column; gap: 16px; }
-  .sidebar-card {
-    background: var(--color-bg-card);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 18px;
-  }
-  .sidebar-label {
-    font-size: 0.625rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--color-ink-subtle);
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: 10px;
-    margin-bottom: 14px;
-  }
-  .sidebar-dt {
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--color-ink-subtle);
-  }
-  .sidebar-dd {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--color-ink);
-    margin-top: 2px;
-  }
-  .sidebar-tema-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--color-border);
-    text-decoration: none;
-    color: var(--color-ink);
-    transition: color 0.15s;
-  }
-  .sidebar-tema-row:last-child { border-bottom: none; }
-  .sidebar-tema-row:hover .sidebar-tema-count { color: var(--color-accent); }
-  .sidebar-tema-count {
-    font-size: 0.75rem;
-    color: var(--color-ink-subtle);
-    transition: color 0.15s;
-  }
-
   /* ── Responsive ─────────────────────────────────────────────────────── */
   @media (max-width: 1024px) {
-    .metrics-grid { grid-template-columns: repeat(3, 1fr); }
-    .metrics-cell:nth-child(3) { border-right: none; }
-    .metrics-cell:nth-child(n+4) { border-top: 1px solid var(--color-border); }
-    .page-grid { grid-template-columns: 1fr 220px; gap: 32px; }
   }
   @media (max-width: 768px) {
     .city-bar { height: auto; padding: 12px 16px 12px 20px; }
     .city-bar-meta { display: none; }
     .city-bar-cta  { display: none; }
     .city-bar-sep  { display: none; }
-    .metrics-grid  { grid-template-columns: repeat(2, 1fr); }
-    .metrics-cell:nth-child(2)  { border-right: none; }
-    .metrics-cell:nth-child(3)  { border-right: 1px solid var(--color-border); }
-    .metrics-cell:nth-child(n+3) { border-top: 1px solid var(--color-border); }
-    .metrics-cell:nth-child(4)  { border-right: none; }
-    .metrics-cell:nth-child(6)  { border-right: none; }
-    .page-grid {
-      grid-template-columns: 1fr;
-    }
-    .sidebar-col { order: -1; }
   }
 </style>
