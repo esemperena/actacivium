@@ -111,6 +111,27 @@ export interface CityDashboardData {
     sameVotes: number;
     sameVoteShare: number;
   }>;
+  alignmentByCategory: Array<{
+    categoria: string;
+    label: string;
+    totalComparisons: number;
+    pairs: Array<{
+      partyA: string;
+      partyB: string;
+      colorA: string;
+      colorB: string;
+      comparedPoints: number;
+      sameVotes: number;
+      sameVoteShare: number;
+    }>;
+  }>;
+  lowConsensusCategories: Array<{
+    categoria: string;
+    label: string;
+    votedPoints: number;
+    unanimousPoints: number;
+    conflictShare: number;
+  }>;
   timeline: Array<{
     id: string;
     numero_acta: number;
@@ -211,6 +232,8 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
     categoryStats: [],
     resultStats: [],
     alignments: [],
+    alignmentByCategory: [],
+    lowConsensusCategories: [],
     timeline: [],
     highlights: [],
   };
@@ -266,9 +289,11 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
       .filter((value): value is number => typeof value === "number");
 
     const categoryCounts: Record<string, number> = {};
+    const pointCategory = new Map<string, string>();
     for (const punto of puntos) {
       const categoria = punto.categoria ?? "otro";
       categoryCounts[categoria] = (categoryCounts[categoria] ?? 0) + 1;
+      pointCategory.set(punto.id, categoria);
     }
 
     const categoryStats = Object.entries(categoryCounts)
@@ -326,8 +351,17 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
       comparedPoints: number;
       sameVotes: number;
     }>();
+    const pairStatsByCategory = new Map<string, Map<string, {
+      partyA: string;
+      partyB: string;
+      colorA: string;
+      colorB: string;
+      comparedPoints: number;
+      sameVotes: number;
+    }>>();
 
-    for (const stances of stanceByPoint.values()) {
+    for (const [pointId, stances] of stanceByPoint.entries()) {
+      const categoria = pointCategory.get(pointId) ?? "otro";
       for (let i = 0; i < stances.length; i += 1) {
         for (let j = i + 1; j < stances.length; j += 1) {
           const left = stances[i];
@@ -347,6 +381,29 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
             current.sameVotes += 1;
           }
           pairStats.set(key, current);
+
+          const categoryPairs = pairStatsByCategory.get(categoria) ?? new Map<string, {
+            partyA: string;
+            partyB: string;
+            colorA: string;
+            colorB: string;
+            comparedPoints: number;
+            sameVotes: number;
+          }>();
+          const categoryCurrent = categoryPairs.get(key) ?? {
+            partyA: first.sigla,
+            partyB: second.sigla,
+            colorA: first.color,
+            colorB: second.color,
+            comparedPoints: 0,
+            sameVotes: 0,
+          };
+          categoryCurrent.comparedPoints += 1;
+          if (first.stance === second.stance) {
+            categoryCurrent.sameVotes += 1;
+          }
+          categoryPairs.set(key, categoryCurrent);
+          pairStatsByCategory.set(categoria, categoryPairs);
         }
       }
     }
@@ -362,6 +419,58 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
         b.comparedPoints - a.comparedPoints ||
         a.partyA.localeCompare(b.partyA)
       );
+
+    const alignmentByCategory = Array.from(pairStatsByCategory.entries())
+      .map(([categoria, pairs]) => {
+        const normalizedPairs = Array.from(pairs.values())
+          .map((item) => ({
+            ...item,
+            sameVoteShare: item.comparedPoints > 0 ? item.sameVotes / item.comparedPoints : 0,
+          }))
+          .sort((a, b) =>
+            b.comparedPoints - a.comparedPoints ||
+            b.sameVoteShare - a.sameVoteShare ||
+            a.partyA.localeCompare(b.partyA)
+          );
+
+        return {
+          categoria,
+          label: CATEGORIAS[categoria] ?? categoria,
+          totalComparisons: normalizedPairs.reduce((sum, item) => sum + item.comparedPoints, 0),
+          pairs: normalizedPairs,
+        };
+      })
+      .filter((item) => item.pairs.length > 0)
+      .sort((a, b) => b.totalComparisons - a.totalComparisons)
+      .slice(0, 5);
+
+    const lowConsensusMap = new Map<string, { votedPoints: number; unanimousPoints: number }>();
+    for (const punto of puntos) {
+      if (!stanceByPoint.has(punto.id)) continue;
+      const categoria = punto.categoria ?? "otro";
+      const current = lowConsensusMap.get(categoria) ?? { votedPoints: 0, unanimousPoints: 0 };
+      current.votedPoints += 1;
+      if (punto.unanimidad === true) {
+        current.unanimousPoints += 1;
+      }
+      lowConsensusMap.set(categoria, current);
+    }
+
+    const lowConsensusCategories = Array.from(lowConsensusMap.entries())
+      .map(([categoria, stats]) => ({
+        categoria,
+        label: CATEGORIAS[categoria] ?? categoria,
+        votedPoints: stats.votedPoints,
+        unanimousPoints: stats.unanimousPoints,
+        conflictShare: stats.votedPoints > 0 ? 1 - (stats.unanimousPoints / stats.votedPoints) : 0,
+      }))
+      .filter((item) => item.votedPoints > 0)
+      .sort((a, b) =>
+        b.conflictShare - a.conflictShare ||
+        b.votedPoints - a.votedPoints ||
+        a.label.localeCompare(b.label)
+      )
+      .slice(0, 5);
 
     const timeline = plenos.map((pleno) => ({
       id: pleno.id,
@@ -426,6 +535,8 @@ export async function getCityDashboard(municipioId: string): Promise<CityDashboa
       categoryStats,
       resultStats,
       alignments,
+      alignmentByCategory,
+      lowConsensusCategories,
       timeline,
       highlights,
     };
