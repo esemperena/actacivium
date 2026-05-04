@@ -30,29 +30,26 @@ await Promise.all(
   })
 );
 
-// Concejales por partido: máximo votos en cualquier punto
-const concejalesPorPartido: Record<string, number> = {};
+// Concejales por partido: oficial (n_concejales) o máximo votos como fallback
+const partidoMeta: Record<string, { maxVotos: number; color: string; n_concejales: number | null }> = {};
 for (const votos of Object.values(votacionesPorPunto)) {
   for (const v of votos) {
     const total = v.votos_favor + v.votos_contra + v.abstenciones;
-    if (!concejalesPorPartido[v.siglas] || concejalesPorPartido[v.siglas] < total) {
-      concejalesPorPartido[v.siglas] = total;
+    if (!partidoMeta[v.siglas]) {
+      partidoMeta[v.siglas] = { maxVotos: 0, color: v.color_hex ?? "#888", n_concejales: v.n_concejales ?? null };
     }
+    if (total > partidoMeta[v.siglas].maxVotos) partidoMeta[v.siglas].maxVotos = total;
   }
 }
 
 // Composición ordenada por escaños (mayor → menor)
-const composicion = Object.entries(concejalesPorPartido)
-  .sort((a, b) => b[1] - a[1])
-  .map(([siglas, concejales]) => {
-    // Buscar color del partido en votaciones
-    let color = "#888";
-    for (const votos of Object.values(votacionesPorPunto)) {
-      const v = votos.find((v) => v.siglas === siglas);
-      if (v?.color_hex) { color = v.color_hex; break; }
-    }
-    return { sigla: siglas, concejales, color };
-  });
+const composicion = Object.entries(partidoMeta)
+  .map(([siglas, m]) => ({
+    sigla: siglas,
+    concejales: m.n_concejales ?? m.maxVotos,
+    color: m.color,
+  }))
+  .sort((a, b) => b.concejales - a.concejales);
 const totalConcejales = composicion.reduce((s, p) => s + p.concejales, 0);
 
 // Puntos polémicos

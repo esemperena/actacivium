@@ -53,6 +53,7 @@ create table partidos (
                   'izquierda', 'centro_izquierda', 'centro',
                   'centro_derecha', 'derecha', 'otro'
                 )) default 'otro',
+  n_concejales  integer,                          -- escaños oficiales en el pleno
   activo        boolean not null default true
 );
 

@@ -60,6 +60,7 @@ export interface Votacion {
   partido: string;
   siglas: string;
   color_hex: string;
+  n_concejales: number | null;
   votos_favor: number;
   votos_contra: number;
   abstenciones: number;
@@ -247,24 +248,30 @@ export async function getAsistenciaPleno(plenoId: string): Promise<AsistenciaPar
 
     const { data } = await supabase
       .from("votaciones")
-      .select("votos_favor, votos_contra, abstenciones, partido_id, partidos(siglas, color_hex)")
+      .select("votos_favor, votos_contra, abstenciones, partido_id, partidos(siglas, color_hex, n_concejales)")
       .in("punto_id", puntoIds);
     if (!data?.length) return [];
 
-    const byParty: Record<string, { sigla: string; color: string; counts: number[] }> = {};
+    const byParty: Record<string, { sigla: string; color: string; n_concejales: number | null; counts: number[] }> = {};
     for (const v of data as any[]) {
       if (!v.partido_id || !v.partidos) continue;
       const total = v.votos_favor + v.votos_contra + v.abstenciones;
       if (!byParty[v.partido_id]) {
-        byParty[v.partido_id] = { sigla: v.partidos.siglas, color: v.partidos.color_hex ?? "#888", counts: [] };
+        byParty[v.partido_id] = {
+          sigla: v.partidos.siglas,
+          color: v.partidos.color_hex ?? "#888",
+          n_concejales: v.partidos.n_concejales ?? null,
+          counts: [],
+        };
       }
       byParty[v.partido_id].counts.push(total);
     }
 
     return Object.values(byParty)
       .map((p) => {
-        const seats = Math.max(...p.counts);
-        // Moda sobre votaciones donde el partido emitió votos
+        // Escaños: usar el oficial de BD; si no existe, inferir del máximo de votos
+        const seats = p.n_concejales ?? Math.max(...p.counts);
+        // Presentes: moda de los recuentos de votaciones con votos emitidos
         const active = p.counts.filter((c) => c > 0);
         const freq: Record<number, number> = {};
         for (const c of active) freq[c] = (freq[c] ?? 0) + 1;
@@ -284,12 +291,13 @@ export async function getVotacionesPunto(puntoId: string): Promise<Votacion[]> {
   try {
     const { data } = await supabase
       .from("votaciones")
-      .select(`votos_favor, votos_contra, abstenciones, partidos ( nombre, siglas, color_hex )`)
+      .select(`votos_favor, votos_contra, abstenciones, partidos ( nombre, siglas, color_hex, n_concejales )`)
       .eq("punto_id", puntoId);
     return (data ?? []).map((v: any) => ({
       partido: v.partidos.nombre,
       siglas: v.partidos.siglas,
       color_hex: v.partidos.color_hex,
+      n_concejales: v.partidos.n_concejales ?? null,
       votos_favor: v.votos_favor,
       votos_contra: v.votos_contra,
       abstenciones: v.abstenciones,
