@@ -233,27 +233,48 @@ export async function getPuntosRelevantes(limit = 12): Promise<any[]> {
 }
 
 export async function getAsistenciaPleno(plenoId: string): Promise<AsistenciaPartido[]> {
+  // Inferimos asistencia por partido desde los datos de votación:
+  // seats = máximo de votos emitidos por el partido en cualquier votación del pleno
+  // presentes = moda de los recuentos de votos (votación más frecuente)
+  // Si seats > presentes → había ausentes de ese partido
   try {
-    const { data } = await supabase
-      .from("asistencia")
-      .select("asistio, partido_id, partidos(siglas, color_hex)")
+    const { data: puntos } = await supabase
+      .from("puntos")
+      .select("id")
       .eq("pleno_id", plenoId);
+    const puntoIds = puntos?.map((p: any) => p.id) ?? [];
+    if (!puntoIds.length) return [];
+
+    const { data } = await supabase
+      .from("votaciones")
+      .select("votos_favor, votos_contra, abstenciones, partido_id, partidos(siglas, color_hex)")
+      .in("punto_id", puntoIds);
     if (!data?.length) return [];
-    const byParty: Record<string, AsistenciaPartido> = {};
-    for (const row of data as any[]) {
-      if (!row.partido_id || !row.partidos) continue;
-      if (!byParty[row.partido_id]) {
-        byParty[row.partido_id] = {
-          sigla: row.partidos.siglas,
-          color: row.partidos.color_hex ?? "#888",
-          presentes: 0,
-          total: 0,
-        };
+
+    const byParty: Record<string, { sigla: string; color: string; counts: number[] }> = {};
+    for (const v of data as any[]) {
+      if (!v.partido_id || !v.partidos) continue;
+      const total = v.votos_favor + v.votos_contra + v.abstenciones;
+      if (!byParty[v.partido_id]) {
+        byParty[v.partido_id] = { sigla: v.partidos.siglas, color: v.partidos.color_hex ?? "#888", counts: [] };
       }
-      byParty[row.partido_id].total++;
-      if (row.asistio) byParty[row.partido_id].presentes++;
+      byParty[v.partido_id].counts.push(total);
     }
-    return Object.values(byParty).sort((a, b) => b.total - a.total);
+
+    return Object.values(byParty)
+      .map((p) => {
+        const seats = Math.max(...p.counts);
+        // Moda sobre votaciones donde el partido emitió votos
+        const active = p.counts.filter((c) => c > 0);
+        const freq: Record<number, number> = {};
+        for (const c of active) freq[c] = (freq[c] ?? 0) + 1;
+        const presentes = active.length
+          ? Number(Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0])
+          : seats;
+        return { sigla: p.sigla, color: p.color, presentes, total: seats };
+      })
+      .filter((p) => p.total > 0)
+      .sort((a, b) => b.total - a.total);
   } catch {
     return [];
   }
