@@ -1,5 +1,10 @@
 ---
 import Base from '../layouts/Base.astro';
+import { getMunicipios } from '../lib/supabase';
+
+const municipios = await getMunicipios();
+const emailParam = Astro.url.searchParams.get('email') ?? '';
+const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
 ---
 
 <Base
@@ -33,8 +38,25 @@ import Base from '../layouts/Base.astro';
             name="email"
             required
             placeholder="nombre@ejemplo.com"
+            value={emailParam}
             class="w-full border border-[var(--color-border)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
           />
+        </div>
+        <div>
+          <label for="ciudad" class="block text-sm font-semibold mb-1">Tu ciudad</label>
+          <select
+            id="ciudad"
+            name="ciudad"
+            required
+            class="w-full border border-[var(--color-border)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+          >
+            <option value="" disabled selected={!ciudadParam}>Selecciona una ciudad…</option>
+            {municipios.map((m) => (
+              <option value={m.slug} selected={ciudadParam === m.slug}>
+                {m.nombre_alt ?? m.nombre}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           type="submit"
@@ -49,7 +71,7 @@ import Base from '../layouts/Base.astro';
       </form>
       <div id="form-success" class="hidden text-center py-4">
         <p class="font-serif text-lg font-bold text-[var(--color-accent)] mb-1">¡Suscripción confirmada!</p>
-        <p class="text-sm text-[var(--color-ink-muted)]">Te avisaremos cuando haya nuevo pleno.</p>
+        <p class="text-sm text-[var(--color-ink-muted)]">Te avisaremos cuando haya nuevo pleno en tu ciudad.</p>
       </div>
     </div>
 
@@ -86,12 +108,13 @@ import Base from '../layouts/Base.astro';
   document.getElementById("newsletter-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = (document.getElementById("email") as HTMLInputElement).value;
+    const ciudad = (document.getElementById("ciudad") as HTMLSelectElement).value;
 
     try {
       const res = await fetch(BREVO_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, ciudad }),
       });
 
       if (res.ok) {
