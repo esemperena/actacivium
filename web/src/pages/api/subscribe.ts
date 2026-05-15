@@ -162,7 +162,7 @@ export const POST: APIRoute = async ({ request }) => {
   const senderEmail = import.meta.env.BREVO_SENDER_EMAIL;
   const senderName = import.meta.env.BREVO_SENDER_NAME ?? "Acta Civium";
   if (senderEmail) {
-    await fetch("https://api.brevo.com/v3/smtp/email", {
+    const emailRes = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: BREVO_HEADERS(apiKey),
       body: JSON.stringify({
@@ -171,7 +171,13 @@ export const POST: APIRoute = async ({ request }) => {
         subject: `Bienvenida a Acta Civium — ${nombreCiudad}`,
         htmlContent: htmlBienvenida(nombreCiudad),
       }),
-    }).catch(() => null); // No bloquear la suscripción si falla el email
+    }).catch((err) => { console.error("[bienvenida] fetch error:", err); return null; });
+    if (emailRes && !emailRes.ok) {
+      const errBody = await emailRes.json().catch(() => ({}));
+      console.error("[bienvenida] Brevo error:", emailRes.status, JSON.stringify(errBody));
+    }
+  } else {
+    console.warn("[bienvenida] BREVO_SENDER_EMAIL no configurado, email de bienvenida no enviado");
   }
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });

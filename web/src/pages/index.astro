@@ -48,7 +48,7 @@ const CATEGORIAS: Record<string, string> = {
         lo que importa. Semanal y gratuito.
       </p>
 
-      <form action="/newsletter" method="GET" class="hero-form">
+      <form id="hero-form" class="hero-form">
         <input type="email" name="email" placeholder="tu@email.com" required class="hero-input" />
         <select name="ciudad" required class="hero-select">
           <option value="" disabled selected>Selecciona tu ciudad…</option>
@@ -58,6 +58,13 @@ const CATEGORIAS: Record<string, string> = {
         </select>
         <button type="submit" class="hero-btn">Suscribirme gratis →</button>
       </form>
+      <div id="hero-success" class="hidden" style="max-width:360px;margin:0 auto;">
+        <p style="font-family:var(--font-serif);font-size:1.25rem;font-weight:700;color:var(--color-accent);margin-bottom:6px;">¡Suscripción confirmada!</p>
+        <p style="font-size:0.875rem;color:var(--color-ink-muted);line-height:1.6;">Revisa tu bandeja de entrada: te hemos enviado un email de bienvenida.</p>
+      </div>
+      <div id="hero-error" class="hidden" style="max-width:360px;margin:0 auto;">
+        <p id="hero-error-msg" style="font-size:0.875rem;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;padding:10px 14px;">Error al suscribir. Inténtalo de nuevo.</p>
+      </div>
       <p class="hero-disclaimer">Sin spam · Un correo semanal · Cancelar cuando quieras</p>
     </div>
   </section>
@@ -181,7 +188,7 @@ const CATEGORIAS: Record<string, string> = {
         Suscríbete a la newsletter y recibe cada semana el análisis de los
         acuerdos municipales de tu ciudad.
       </p>
-      <form action="/newsletter" method="GET" class="cta2-form">
+      <form id="cta2-form" class="cta2-form">
         <input type="email" name="email" placeholder="tu@email.com" required class="cta2-input" />
         <select name="ciudad" required class="cta2-select">
           <option value="" disabled selected>Selecciona tu ciudad…</option>
@@ -191,10 +198,65 @@ const CATEGORIAS: Record<string, string> = {
         </select>
         <button type="submit" class="cta2-btn">Suscribirme</button>
       </form>
+      <div id="cta2-success" class="hidden" style="margin-top:16px;">
+        <p style="font-family:var(--font-serif);font-size:1.125rem;font-weight:700;color:var(--color-accent);margin-bottom:4px;">¡Suscripción confirmada!</p>
+        <p style="font-size:0.875rem;color:var(--color-ink-muted);">Revisa tu bandeja de entrada: te hemos enviado un email de bienvenida.</p>
+      </div>
+      <div id="cta2-error" class="hidden" style="margin-top:12px;">
+        <p id="cta2-error-msg" style="font-size:0.875rem;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;padding:10px 14px;">Error al suscribir. Inténtalo de nuevo.</p>
+      </div>
     </div>
   </section>
 
 </Base>
+
+<script>
+  async function suscribir(email: string, ciudad: string, formId: string) {
+    const form = document.getElementById(formId)!;
+    const btn = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
+    const successEl = document.getElementById(formId.replace("-form", "-success"))!;
+    const errorEl = document.getElementById(formId.replace("-form", "-error"))!;
+    const errorMsg = document.getElementById(formId.replace("-form", "-error-msg"))!;
+
+    btn.disabled = true;
+    btn.textContent = "Suscribiendo…";
+
+    try {
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, ciudad }),
+      });
+
+      if (res.ok) {
+        form.classList.add("hidden");
+        errorEl.classList.add("hidden");
+        successEl.classList.remove("hidden");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        errorMsg.textContent = data.error ?? "Error al suscribir. Inténtalo de nuevo.";
+        errorEl.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = btn.dataset.label ?? "Suscribirme";
+      }
+    } catch {
+      errorMsg.textContent = "Error de red. Comprueba tu conexión e inténtalo de nuevo.";
+      errorEl.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = btn.dataset.label ?? "Suscribirme";
+    }
+  }
+
+  ["hero-form", "cta2-form"].forEach((formId) => {
+    document.getElementById(formId)?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.currentTarget as HTMLFormElement;
+      const email = (form.querySelector<HTMLInputElement>("[name=email]"))!.value;
+      const ciudad = (form.querySelector<HTMLSelectElement>("[name=ciudad]"))!.value;
+      await suscribir(email, ciudad, formId);
+    });
+  });
+</script>
 
 <style>
   /* Hero */
