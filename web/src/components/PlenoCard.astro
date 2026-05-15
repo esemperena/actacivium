@@ -100,7 +100,7 @@ const RESULTADO_DOT: Record<string, string> = {
     background: var(--color-bg-card);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: 20px 20px 16px 20px;
+    padding: 14px 16px 12px 16px;
     position: relative;
     overflow: hidden;
     transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
@@ -147,7 +147,7 @@ const RESULTADO_DOT: Record<string, string> = {
   .card-fecha-link { text-decoration: none; display: block; margin-bottom: 6px; }
   .card-fecha {
     font-family: var(--font-serif);
-    font-size: clamp(1rem, 1.8vw, 1.2rem);
+    font-size: clamp(0.95rem, 1.6vw, 1.1rem);
     font-weight: 600;
     line-height: 1.2;
     letter-spacing: -0.02em;
@@ -156,7 +156,7 @@ const RESULTADO_DOT: Record<string, string> = {
     display: block;
     transition: color 0.15s;
   }
-  .card-fecha--featured { font-size: clamp(1.15rem, 2.5vw, 1.5rem); }
+  .card-fecha--featured { font-size: clamp(1.05rem, 2.2vw, 1.35rem); }
   .card-fecha-link:hover .card-fecha { color: var(--color-accent); }
 
   .card-resumen {
@@ -195,11 +195,11 @@ const RESULTADO_DOT: Record<string, string> = {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
-    margin-top: 10px;
-    padding-top: 10px;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 8px;
     border-top: 1px solid var(--color-border);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     color: var(--color-ink-subtle);
   }
   .card-stats-total { font-weight: 600; color: var(--color-ink); }

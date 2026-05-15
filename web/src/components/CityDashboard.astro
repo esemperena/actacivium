@@ -243,127 +243,19 @@ const heatColor = (share: number) => {
       )}
   </section>
 
-  <div class="dashboard-insight-grid">
-    <section class="dashboard-panel">
-      <div class="dashboard-panel-head">
-        <p class="dashboard-panel-kicker">Puntos clave</p>
-        <h3 class="dashboard-panel-title">Asuntos con mas impacto potencial</h3>
-      </div>
-
-      {featuredPoints.length > 0 ? (
-        <div class="featured-points-grid">
-          {featuredPoints.map((item) => (
-            <a href={`/acta/${item.plenoId}`} class="featured-point-card">
-              <div class="featured-point-top">
-                <span class="featured-point-acta">Acta {item.numeroActa}</span>
-                <span class="featured-point-date">{compactDate(item.fecha)}</span>
-              </div>
-              <p class="featured-point-title">{item.titulo}</p>
-              <div class="featured-point-tags">
-                <span class:list={['badge', `badge-${item.categoria}`]}>
-                  {CATEGORIAS[item.categoria] ?? item.categoria}
-                </span>
-                {item.proponente && (
-                  <span class:list={['featured-point-block', `featured-point-block--${item.bloque}`]}>
-                    {blockLabel(item.bloque)} · {item.proponente}
-                  </span>
-                )}
-              </div>
-              <div class="featured-point-footer">
-                <span class:list={['resultado-pill', item.resultado]}>
-                  <span class="pill-dot" />
-                  {item.resultado === 'aprobado'
-                    ? 'Aprobado'
-                    : item.resultado === 'rechazado'
-                      ? 'Rechazado'
-                      : item.resultado === 'enterado'
-                        ? 'Enterado'
-                        : item.resultado}
-                </span>
-                <span class="featured-point-relevance">Relevancia {item.relevancia}/5</span>
-              </div>
-            </a>
-          ))}
-        </div>
-      ) : (
-        <p class="dashboard-empty">Todavia no hay puntos destacados con relevancia social suficiente.</p>
-      )}
-    </section>
-
-    <section class="dashboard-panel">
-      <div class="dashboard-panel-head">
-        <p class="dashboard-panel-kicker">Impulso politico</p>
-        <h3 class="dashboard-panel-title">Que bloque consigue sacar adelante sus propuestas</h3>
-      </div>
-
-      {(dashboard.proposalSummary.gobierno.total > 0 || dashboard.proposalSummary.oposicion.total > 0) ? (
-        <div class="proposal-grid">
-          {proposalCards.map((item) => {
-            const successShare = item.data.total > 0 ? item.data.aprobadas / item.data.total : 0;
-            return (
-              <article class:list={['proposal-card', item.tone]}>
-                <p class="proposal-card-label">{item.label}</p>
-                <div class="proposal-card-top">
-                  <span class="proposal-card-value">{item.data.aprobadas}</span>
-                  <span class="proposal-card-note">de {item.data.total} aprobadas</span>
-                </div>
-                <div class="proposal-track">
-                  <div class="proposal-fill" style={`width:${Math.max(successShare * 100, item.data.total > 0 ? 10 : 0)}%`} />
-                </div>
-                <p class="proposal-card-foot">
-                  {Math.round(successShare * 100)}% de exito
-                  {item.data.rechazadas > 0 ? ` · ${item.data.rechazadas} rechazadas` : ''}
-                </p>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <p class="dashboard-empty">Todavia no hay suficientes puntos con grupo proponente identificado.</p>
-      )}
-    </section>
-
-    <section class="dashboard-panel">
-      <div class="dashboard-panel-head">
-        <p class="dashboard-panel-kicker">Menos unanimidad</p>
-        <h3 class="dashboard-panel-title">Temas donde mas se rompe el consenso</h3>
-      </div>
-
-      {conflictRows.length > 0 ? (
-        <div class="conflict-list">
-          {conflictRows.map((item) => (
-            <article class="conflict-card">
-              <div class="conflict-top">
-                <span class:list={['badge', `badge-${item.categoria}`]}>{item.label}</span>
-                <span class="conflict-value">{Math.round(item.conflictShare * 100)}%</span>
-              </div>
-              <div class="conflict-track">
-                <div class="conflict-fill" style={`width:${Math.max(item.conflictShare * 100, 8)}%`} />
-              </div>
-              <p class="conflict-note">
-                {item.votedPoints - item.unanimousPoints} de {item.votedPoints} votaciones no fueron unanimes
-              </p>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <p class="dashboard-empty">Todavia no hay suficientes votaciones para medir conflicto por tema.</p>
-      )}
-    </section>
-  </div>
 </section>
 
 <style>
   .dashboard-shell {
-    margin-bottom: 32px;
+    margin-bottom: 24px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
   }
   .dashboard-hero {
     display: grid;
     grid-template-columns: 1.15fr 1fr;
-    gap: 14px;
+    gap: 10px;
     align-items: stretch;
   }
   .dashboard-hero-copy,
@@ -374,7 +266,7 @@ const heatColor = (share: number) => {
     border-radius: 8px;
   }
   .dashboard-hero-copy {
-    padding: 22px 24px;
+    padding: 16px 20px;
     background:
       linear-gradient(135deg, oklch(99% 0.012 160) 0%, oklch(100% 0 0) 65%),
       var(--color-bg-card);
@@ -388,19 +280,19 @@ const heatColor = (share: number) => {
     color: var(--color-accent);
   }
   .dashboard-title {
-    margin-top: 8px;
+    margin-top: 6px;
     font-family: var(--font-serif);
-    font-size: clamp(1.35rem, 2.7vw, 2rem);
+    font-size: clamp(1.15rem, 2.3vw, 1.65rem);
     line-height: 1.05;
     letter-spacing: -0.03em;
     color: var(--color-ink);
     max-width: 14ch;
   }
   .dashboard-subtitle {
-    margin-top: 12px;
+    margin-top: 8px;
     max-width: 58ch;
-    font-size: 0.9rem;
-    line-height: 1.65;
+    font-size: 0.825rem;
+    line-height: 1.6;
     color: var(--color-ink-muted);
   }
 
@@ -410,7 +302,7 @@ const heatColor = (share: number) => {
     overflow: hidden;
   }
   .dashboard-stat {
-    padding: 18px 16px 14px;
+    padding: 12px 14px 10px;
     border-right: 1px solid var(--color-border);
     border-bottom: 1px solid var(--color-border);
   }
@@ -424,17 +316,17 @@ const heatColor = (share: number) => {
     color: var(--color-ink-subtle);
   }
   .dashboard-stat-value {
-    margin-top: 9px;
+    margin-top: 6px;
     font-family: var(--font-serif);
-    font-size: 1.7rem;
+    font-size: 1.45rem;
     line-height: 1;
     letter-spacing: -0.04em;
     color: var(--color-ink);
   }
   .dashboard-stat-note {
-    margin-top: 8px;
-    font-size: 0.72rem;
-    line-height: 1.45;
+    margin-top: 5px;
+    font-size: 0.69rem;
+    line-height: 1.4;
     color: var(--color-ink-muted);
   }
   .dashboard-stat--good .dashboard-stat-value { color: var(--color-green); }
@@ -443,7 +335,7 @@ const heatColor = (share: number) => {
   .dashboard-overview-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    gap: 10px;
     align-items: stretch;
   }
   .dashboard-insight-grid {
@@ -456,10 +348,10 @@ const heatColor = (share: number) => {
     grid-column: 1 / -1;
   }
   .dashboard-panel {
-    padding: 18px;
+    padding: 14px;
   }
   .dashboard-panel--compact {
-    padding: 16px;
+    padding: 12px;
   }
   .dashboard-panel--equal {
     height: 100%;
@@ -472,21 +364,21 @@ const heatColor = (share: number) => {
   .dashboard-panel-head {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    margin-bottom: 14px;
+    gap: 4px;
+    margin-bottom: 10px;
   }
   .dashboard-panel-head--tight {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
   .dashboard-panel-title {
     font-family: var(--font-serif);
-    font-size: 1.08rem;
+    font-size: 0.975rem;
     line-height: 1.15;
     letter-spacing: -0.02em;
     color: var(--color-ink);
   }
   .dashboard-panel-title--sm {
-    font-size: 0.98rem;
+    font-size: 0.9rem;
   }
 
   .dashboard-composition {

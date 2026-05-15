@@ -89,7 +89,7 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
 
   <CityDashboard municipio={municipio} dashboard={dashboard} />
 
-  <section>
+  <section style="margin-top: -4px;">
     <div class="section-rule mb-6">
       <span class="text-xs font-bold uppercase tracking-widest">
         Archivo de actas · {count} {(count ?? 0) === 1 ? "sesión" : "sesiones"}
@@ -199,7 +199,7 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
   .plenos-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
 
   /* ── Responsive ─────────────────────────────────────────────────────── */
