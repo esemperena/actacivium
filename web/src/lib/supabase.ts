@@ -21,6 +21,7 @@ export interface Municipio {
   color_gobierno: string | null;
   web_oficial: string | null;
   url_actas: string | null;
+  brevo_list_id: number | null;
 }
 
 export interface Pleno {
@@ -368,11 +369,12 @@ export async function getCityDashboard(
     for (const row of votaciones as any[]) {
       const sigla = row.partidos?.siglas;
       if (!sigla) continue;
-      const stance =
-        row.votos_favor > 0 ? "favor" :
-        row.votos_contra > 0 ? "contra" :
-        row.abstenciones > 0 ? "abstencion" :
-        null;
+      const maxVotos = Math.max(row.votos_favor, row.votos_contra, row.abstenciones);
+      const stance: "favor" | "contra" | "abstencion" | null =
+        maxVotos === 0 ? null :
+        row.votos_favor === maxVotos ? "favor" :
+        row.votos_contra === maxVotos ? "contra" :
+        "abstencion";
       if (!stance) continue;
       const color = row.partidos?.color_hex ?? "#888888";
       const list = stanceByPoint.get(row.punto_id) ?? [];
