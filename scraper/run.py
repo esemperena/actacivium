@@ -21,6 +21,7 @@ from donostia import (
 )
 from pdf_processor import (
     extraer_texto,
+    extraer_texto_castellano,
     extraer_metadatos,
     extraer_asistentes,
     extraer_asistentes_con_partido,
@@ -52,6 +53,8 @@ def main():
     parser = argparse.ArgumentParser(description="Scraper Acta Civium")
     parser.add_argument("--dry-run", action="store_true", help="Solo listar, no procesar")
     parser.add_argument("--reprocess", type=int, metavar="N", help="Reprocesar acta nº N")
+    parser.add_argument("--year", type=int, metavar="YYYY", help="Año a scrapear (defecto: año actual)")
+    parser.add_argument("--no-newsletter", action="store_true", help="No enviar newsletter tras procesar")
     args = parser.parse_args()
 
     inicio = time.time()
@@ -65,8 +68,9 @@ def main():
     print(f"{'='*60}\n")
 
     # 1. Obtener lista de actas disponibles en la web
-    print("→ Consultando actas disponibles en donostia.eus...")
-    actas = obtener_actas_disponibles()
+    year = args.year
+    print(f"→ Consultando actas disponibles en donostia.eus (año {year or 'actual'})...")
+    actas = obtener_actas_disponibles(year=year)
     print(f"  {len(actas)} actas encontradas en la web\n")
 
     if args.dry_run:
@@ -96,9 +100,15 @@ def main():
         print(f"  [{acta.numero_acta}] {acta.fecha_str} ({acta.tipo})")
         if args.reprocess:
             db.eliminar_pleno(municipio_id, acta.numero_acta)
-        exito = procesar_acta(acta, municipio_id, temp_dir)
-        if exito:
+        pleno_id = procesar_acta(acta, municipio_id, temp_dir)
+        if pleno_id:
             procesadas += 1
+            if not args.no_newsletter and not args.reprocess:
+                try:
+                    from send_newsletter import enviar_newsletter
+                    enviar_newsletter(pleno_id)
+                except Exception as e:
+                    print(f"    [!] Error enviando newsletter: {e}")
         else:
             errores += 1
         time.sleep(2)  # pausa educada entre peticiones
@@ -111,8 +121,8 @@ def main():
     _registrar_log(municipio_id, procesadas, errores, inicio)
 
 
-def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
-    """Descarga, extrae, analiza con IA e inserta en BD una acta completa."""
+def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> str | None:
+    """Descarga, extrae, analiza con IA e inserta en BD una acta completa. Devuelve pleno_id o None si hay error."""
 
     # ── Insertar pleno en estado 'pendiente' ──────────────────────────────────
     fecha_iso = fecha_str_a_iso(acta.fecha_str)
@@ -137,10 +147,12 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
         # ── Extraer texto ─────────────────────────────────────────────────────
         print(f"    ↳ Extrayendo texto...", end=" ", flush=True)
         texto = extraer_texto(pdf_path)
+        # Extraer también solo la columna castellana para parsing estructurado limpio
+        texto_cas = extraer_texto_castellano(pdf_path)
         meta = extraer_metadatos(texto)
         asistentes, ausentes = extraer_asistentes(texto)
         puntos_sumario = extraer_puntos_sumario(texto)
-        votaciones_por_punto = extraer_votaciones_por_punto(texto)
+        votaciones_por_punto = extraer_votaciones_por_punto(texto_cas)
         n_con_votos = sum(1 for v in votaciones_por_punto.values() if v.get("partidos"))
         print(f"OK ({len(texto):,} chars, {len(puntos_sumario)} puntos, {n_con_votos} con votos)")
 
@@ -178,12 +190,12 @@ def procesar_acta(acta, municipio_id: str, temp_dir: Path) -> bool:
         pdf_path.unlink(missing_ok=True)
 
         print(f"    ✓ Acta {acta.numero_acta} procesada correctamente\n")
-        return True
+        return pleno_id
 
     except Exception as e:
         print(f"\n    [!] Error procesando acta {acta.numero_acta}: {e}")
         db.actualizar_pleno(pleno_id, {"estado": "error", "error_msg": str(e)[:500]})
-        return False
+        return None
 
 
 def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,

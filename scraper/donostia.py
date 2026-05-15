@@ -10,9 +10,9 @@ from bs4 import BeautifulSoup
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 BASE_URL = "https://www.donostia.eus"
-LISTING_URL = (
+LISTING_URL_TPL = (
     "https://www.donostia.eus/secretaria/AsuntosPleno.nsf"
-    "/fwHistorico?ReadForm&id=C511345&idioma=cas"
+    "/fwHistorico?ReadForm&id=C511345&idioma=cas&urtea={year}"
 )
 
 HEADERS = {
@@ -39,12 +39,15 @@ def _fetch(url: str) -> str:
     return r.content.decode(encoding, errors="replace")
 
 
-def obtener_actas_disponibles() -> list[ActaRef]:
+def obtener_actas_disponibles(year: int | None = None) -> list[ActaRef]:
     """
     Parsea la página de listado de actas de Donostia y devuelve
     todas las referencias a PDFs disponibles.
+    Si no se especifica year, usa el año actual.
     """
-    html = _fetch(LISTING_URL)
+    from datetime import date
+    url = LISTING_URL_TPL.format(year=year or date.today().year)
+    html = _fetch(url)
     soup = BeautifulSoup(html, "html.parser")
 
     actas: list[ActaRef] = []

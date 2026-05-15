@@ -238,10 +238,11 @@ select
   p.estado,
   m.nombre as municipio,
   p.n_asistentes,
-  count(pu.id) as total_puntos,
-  count(pu.id) filter (where pu.resultado = 'aprobado') as aprobados,
-  count(pu.id) filter (where pu.resultado = 'rechazado') as rechazados,
-  count(pu.id) filter (where pu.unanimidad = true) as unanimes
+  -- Solo puntos resolutivos (excluye dar_cuenta y otro = informes y comunicaciones)
+  count(pu.id) filter (where pu.tipo not in ('dar_cuenta', 'otro') and not coalesce(pu.es_urgencia, false)) as total_puntos,
+  count(pu.id) filter (where pu.resultado = 'aprobado' and pu.tipo not in ('dar_cuenta', 'otro')) as aprobados,
+  count(pu.id) filter (where pu.resultado = 'rechazado' and pu.tipo not in ('dar_cuenta', 'otro')) as rechazados,
+  count(pu.id) filter (where pu.unanimidad = true and pu.tipo not in ('dar_cuenta', 'otro')) as unanimes
 from plenos p
 join municipios m on m.id = p.municipio_id
 left join puntos pu on pu.pleno_id = p.id

@@ -23,6 +23,22 @@ def extraer_texto(pdf_path: Path) -> str:
     return _limpiar_texto(texto_completo)
 
 
+def extraer_texto_castellano(pdf_path: Path) -> str:
+    """
+    Extrae solo la columna derecha (castellano) de las actas bilingües de Donostia.
+    El layout es 2 columnas: euskera (izq) + castellano (der). Cropear la mitad derecha
+    da texto castellano limpio, mucho mejor para parsing estructurado (puntos, votaciones).
+    """
+    partes = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            right = page.crop((page.width / 2, 0, page.width, page.height))
+            texto = right.extract_text(x_tolerance=2, y_tolerance=2)
+            if texto:
+                partes.append(texto)
+    return _limpiar_texto("\n".join(partes))
+
+
 def _limpiar_texto(texto: str) -> str:
     # Eliminar encabezados repetidos de cada página (AKTA XX / ACTA XX + fecha)
     texto = re.sub(r"AKTA \d+ ACTA \d+\n[^\n]+\n", "", texto)
@@ -148,9 +164,21 @@ def extraer_puntos_sumario(texto: str) -> list[dict]:
     puntos = []
 
     # Caso especial: sesión con un único punto ("Bakarra / Único")
-    m_unico = re.search(r"(?:Bakarra|[ÚU]nico)\s+([A-ZÁÉÍÓÚÑÜ][^\n]{5,})", bloque, re.I)
+    # Variantes vistas en PDFs de Donostia:
+    #   "Bakarra / Aprobación X\nPAGE\nÚnico 2026."  (acta 42)
+    #   "Bakarra Declaración anual de política general."  (acta 36, sin barra)
+    m_unico = re.search(
+        r"Bakarra\s*/??\s*([A-ZÁÉÍÓÚÑÜ][^\n]{5,})|(?<!\w)[ÚU]nico\s+([A-ZÁÉÍÓÚÑÜ][^\n]{5,})",
+        bloque, re.I
+    )
     if m_unico:
-        titulo = re.sub(r"\s+\d{1,3}\s*$", "", m_unico.group(1)).strip()
+        titulo_base = (m_unico.group(1) or m_unico.group(2) or "").strip()
+        # Si había barra separadora, puede haber continuación "Único YEAR" (ej: "Único 2026.")
+        m_cont = re.search(r"[ÚU]nico\s+(\d[\w\s]*)", bloque, re.I)
+        if m_cont and m_unico.group(1):
+            extra = m_cont.group(1).strip().rstrip(".")
+            titulo_base = (titulo_base + " " + extra).strip()
+        titulo = re.sub(r"\s+\d{1,3}\s*$", "", titulo_base).strip()
         puntos.append({"numero": 1, "titulo": _limpiar_titulo(titulo), "pagina": None})
         return puntos
 
@@ -249,38 +277,117 @@ def _limpiar_titulo(titulo: str) -> str:
 
 def extraer_votaciones_por_punto(texto: str) -> dict[int, dict]:
     """
-    Devuelve {numero_punto: {resultado, unanimidad, partidos, total_abstenciones}}
-    asociando cada bloque de votación con el punto del orden del día que le precede.
-    Maneja el layout bilingüe (euskera + castellano) de las actas de Donostia.
+    Devuelve {numero_punto: {resultado, unanimidad, partidos, total_abstenciones}}.
+    Espera texto castellano limpio (de extraer_texto_castellano). Asocia cada bloque
+    de "RESULTADO DE LA VOTACIÓN:" al número de punto correcto del orden del día.
+
+    Filtra falsos positivos: solo acepta headings cuya numeración forma una secuencia
+    ascendente (los números pequeños dentro de acuerdos como "1.- Aprobar..." se descartan).
     """
     result: dict[int, dict] = {}
 
-    # Localizar los encabezados de punto en el cuerpo del acta: "N.-"
-    heading_pat = re.compile(r"\b(\d{1,2})\.-\s+[A-ZÁÉÍÓÚÑÜ]")
-    headings: list[tuple[int, int]] = []
-    seen_nums: set[int] = set()
-    for m in heading_pat.finditer(texto):
-        num = int(m.group(1))
-        if num not in seen_nums:
-            seen_nums.add(num)
-            headings.append((num, m.start()))
+    # Encontrar todos los bloques "RESULTADO DE LA VOTACIÓN:"
+    vote_positions = [m.start() for m in re.finditer(r"RESULTADO DE LA VOTACI[ÓO]N", texto, re.IGNORECASE)]
+    if not vote_positions:
+        return result
 
-    headings.append((0, len(texto)))  # centinela final
+    # Patrón para encabezado de punto del orden del día.
+    punto_pat = re.compile(
+        r"(?:^|\n)[^\n]{0,15}?\b(\d{1,2})[\.\-\s]+(?:"
+        r"Aprobación|Aprobar|Dar\s+cuenta|Dar\s+conocimiento|Ratificación|Ratificar|"
+        r"Moción|Mociones|Toma\s+de|Concesión|Reconocimiento|Enmienda|Declaración|"
+        r"Modificación|Resuelve|Plan|Estudio|Ordenanza|Convocatoria|Habilitación|"
+        r"Inadmitir|Desestim|Elección|Juramento"
+        r")",
+        re.MULTILINE | re.IGNORECASE,
+    )
 
-    for i, (num, start) in enumerate(headings[:-1]):
-        section = texto[start: headings[i + 1][1]]
-        # Tomar el ÚLTIMO bloque de votación de la sección (tras enmiendas)
-        vote_starts = [m.start() for m in re.finditer(
-            r"RESULTADO DE LA VOTACI[ÓO]N:", section, re.IGNORECASE)]
-        if not vote_starts:
+    # Recoger TODOS los headings candidatos
+    all_headings = [(m.start(), int(m.group(1))) for m in punto_pat.finditer(texto)]
+
+    # PASO 1: Extraer puntos del SUMARIO. Los primeros N headings densamente agrupados
+    # son del orden del día. Identificar el corte por densidad: el sumario termina cuando
+    # aparece un gap grande entre headings (>3000 chars).
+    puntos_sumario_set: set[int] = set()
+    sumario_end_pos = 0
+    last_pos = 0
+    for pos, num in all_headings:
+        if last_pos > 0 and pos - last_pos > 3000:
+            break  # gap grande = fin del sumario, inicio del cuerpo
+        # Filtro: solo números razonables (1-30) son puntos del orden del día
+        if 1 <= num <= 30:
+            puntos_sumario_set.add(num)
+            sumario_end_pos = pos
+        last_pos = pos
+
+    # Filtrar el set: si hay un número aislado fuera del rango contiguo, descartarlo.
+    # Ej: {1,2,3,4,5,6,7,8,9,10,11,35} → descartar 35 (no consecutivo).
+    if puntos_sumario_set:
+        sorted_nums = sorted(puntos_sumario_set)
+        max_consecutivo = sorted_nums[0]
+        for n in sorted_nums:
+            if n <= max_consecutivo + 2:  # tolerancia de gap pequeño
+                max_consecutivo = n
+            else:
+                break
+        puntos_sumario_set = {n for n in puntos_sumario_set if n <= max_consecutivo}
+
+    if not puntos_sumario_set:
+        return result  # no se pudo detectar orden del día
+
+    # PASO 2: En parte resolutiva, recorrer headings buscando secuencia 1, 2, 3, ...
+    # Usar "SE DECLARA ABIERTA" como inicio real de la parte resolutiva. Esto es más
+    # robusto que sumario_end_pos, que puede incluir los primeros encabezados de la parte
+    # resolutiva si aparecen cerca del sumario (gap < 3000 chars).
+    m_apertura = re.search(r"SE DECLARA ABIERTA\s+LA\s+SESI[ÓO]N", texto, re.IGNORECASE)
+    parte_resolutiva_start = m_apertura.start() if m_apertura else sumario_end_pos
+
+    valid_headings: list[tuple[int, int]] = []
+    expected = 1
+    last_accepted = 0
+    for pos, num in all_headings:
+        if pos <= parte_resolutiva_start:
             continue
-        vote_text = section[vote_starts[-1]:]
-        end = re.search(r"-{3,}", vote_text)
-        if end:
-            vote_text = vote_text[:end.start()]
+        if num not in puntos_sumario_set:
+            continue
+        if num == expected:
+            valid_headings.append((pos, num))
+            last_accepted = num
+            expected += 1
+        elif num == last_accepted and last_accepted > 0:
+            # Repetición del mismo punto (sub-bloques, enmiendas): aceptar
+            valid_headings.append((pos, num))
+        # Cualquier otro caso: descartar (falso positivo o salto que romperá el orden)
+
+    # Asociar cada votación al heading válido más reciente
+    for vote_start in vote_positions:
+        candidatos = [(p, n) for p, n in valid_headings if p < vote_start]
+        if not candidatos:
+            continue
+        punto_num = candidatos[-1][1]
+
+        # Extraer el bloque de votación (acotado por "---" o siguiente votación)
+        next_vote = next((p for p in vote_positions if p > vote_start), len(texto))
+        vote_section = texto[vote_start:next_vote]
+        m_fin = re.search(r"-{3,}", vote_section)
+        vote_text = vote_section[:m_fin.start()] if m_fin else vote_section
+
         vot = _parsear_bloque_votacion(vote_text)
-        if vot:
-            result[num] = vot
+        if not vot:
+            continue
+
+        # El voto FINAL de un punto siempre viene después de los de enmiendas.
+        # Regla: el último voto con desglose por partido sobreescribe al anterior;
+        # solo se preserva el existente si el nuevo no aporta partidos (ej. UNANIMIDAD).
+        existente = result.get(punto_num)
+        if not existente:
+            result[punto_num] = vot
+        elif vot.get("partidos"):
+            # Nuevo voto tiene desglose → es más reciente, sobreescribir siempre
+            result[punto_num] = vot
+        elif not existente.get("partidos") and vot.get("resultado") != "sin_votacion":
+            # Ninguno tiene desglose pero el nuevo tiene resultado real → actualizar
+            result[punto_num] = vot
 
     return result
 
@@ -325,11 +432,23 @@ def _parsear_bloque_votacion(bloque: str) -> dict | None:
     m_abst = re.search(r"ABSTENCIONES:\s*(\d+)", texto, re.I)
     total_abst = int(m_abst.group(1)) if m_abst else 0
     if total_abst > 0:
-        # Intentar extraer desglose: "3 – PP" o "(3) PP"
+        # Intentar extraer desglose: "3 – (3) PP" o "3 – EH BILDU"
         m_abst_detail = re.search(
             r"ABSTENCIONES:\s*\d+\s*[-–]\s*(.+?)(?:\.|$)", texto, re.I)
         if m_abst_detail:
-            _acumular_votos(m_abst_detail.group(1), "abstenciones", partidos)
+            abst_text = m_abst_detail.group(1)
+            if re.search(r"\(\d+\)", abst_text):
+                # Formato con paréntesis: "(3) PP, (2) ELKARREKIN"
+                _acumular_votos(abst_text, "abstenciones", partidos)
+            else:
+                # Formato simple: "EH BILDU" o "PP, ELKARREKIN" sin números
+                # Si hay un único partido, asignarle total_abst; si hay varios, 1 a cada uno
+                simple_parties = [p.strip() for p in re.split(r",\s*", abst_text) if p.strip()]
+                for party_raw in simple_parties:
+                    siglas = _normalizar_siglas(party_raw)
+                    if siglas:
+                        n = total_abst if len(simple_parties) == 1 else 1
+                        _set_votos(partidos, siglas, "abstenciones", n)
 
     if not partidos and resultado == "sin_votacion":
         return None
@@ -371,10 +490,31 @@ def _acumular_votos(texto: str, posicion: str, partidos: dict):
 
 
 def _normalizar_siglas(s: str) -> str:
-    s = s.strip().rstrip(".,")
-    # "BILDU" → "EH BILDU" (artefacto del layout bilingüe que parte "EH\nBILDU")
-    if s == "BILDU":
-        return "EH BILDU"
+    s = s.strip().rstrip(".,;:")
+    # Limpiar artefactos del cropeo de columnas bilingüe (ruido del euskera)
+    s = re.sub(r"\b[A-Z]\b\s+", "", s)   # quitar letras sueltas: "N EH BILDU" → "EH BILDU"
+    s = re.sub(r"\bEH\s+\w{1,3}\s+BILDU\b", "EH BILDU", s, flags=re.IGNORECASE)  # "EH IN BILDU" → "EH BILDU"
+    s = re.sub(r"\s+", " ", s).strip()
+
+    # Mapeo de variantes conocidas
+    mapping = {
+        "BILDU": "EH BILDU",
+        "EH BILDU": "EH BILDU",
+        "EAJ-PNV": "EAJ/PNV",
+        "EAJ PNV": "EAJ/PNV",
+        "PSE EE": "PSE-EE",
+        "PSE- EE": "PSE-EE",
+        "PSE -EE": "PSE-EE",
+        "ELKARREKIN": "ELKARREKIN DONOSTIA",
+    }
+    if s in mapping:
+        return mapping[s]
+
+    # Filtrar siglas obvias inválidas (texto que no son siglas)
+    palabras_invalidas = {"OR HABERSE AUSENTADO DE LA SALA", "POR HABERSE AUSENTADO DE LA SALA"}
+    if s in palabras_invalidas:
+        return ""
+
     return s if len(s) >= 2 else ""
 
 
