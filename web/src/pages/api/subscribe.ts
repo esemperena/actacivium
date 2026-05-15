@@ -8,8 +8,10 @@ const BREVO_HEADERS = (apiKey: string) => ({
 
 const WEB_BASE_URL = import.meta.env.WEB_BASE_URL ?? "https://actacivium.netlify.app";
 
+const LOGO_B64 = "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAEL0lEQVR4nO1aTWzTVhx/z3GaBAO1mwah7pCtqjTEqqbbBBJCxJFA205xBdphl2RSe26lHXYcKpcdEJdddqSpNGlIfDTlhhBKihgTpzJtrNpKaJKCgH7ESZrGTux4+r/EFQIS55PODT/p6b3Y7+uf/+//8Wxj7vDHGqpAKeb/hFrOpbZURT6klUoM+p+A7nE8sdoPkL322A+c0K9jEEDKbUbhh5xLHUEmgI3hluxMHw9tCpkcmGEHfstnXg4ik4HhBtb2hAboopTFyISQc6ktqDFF0c/bMaFn1ENDPSYItnr6z4RC+fhKvNTsepiicm0VIBZb7ofa7XZb6ukfiUTl06fPiK2ua3obwO3QAM/z1jt3bvc1Os7Z73oBtZgSd1cDwWDA3sy4qclJBkpXU4huZTDLscQFC4Lf0cx4r9drRbspgOD3E5fJsmVBGoXPx9t0G4pGo8Vm5uhuCgUCxsYbDs9LUAuCv2rfsTHB1rUawM3EAfeHbiJ47PGyq1a/mZnQ9vj4RJb0jS33V4vSoiiWnE4XyS7fiQZ8PN8DxahfdGGhoLdDodl8tX4sy1JgyFAa3Ut3UihWZ+IGqYKeJhilG+GKsZ89ey7dUS8EabPRxufnb0qv5zjgZeLxuFptLM97CSVZjm0oNzI9hahGB0xNThqmDTfm5iQor1+fC4ffuPaqIUMJBgKOjgqgh/9aALq8LTCF5+Zlo7H+SnrSNRTC9XohYUwgRnb92lWulaPixsbaIaME0NnAQYduNPM0Qmi2esCq3N+GutZBZqpyb3r6Ajm4t6wBSB30tEEURS0aXSBcjkQiJNLGEwl1cXFRgXY6nS7V+ufATZI53W6a7S1rweMZoX0+H9Ewz3ttMAe0BweH1o321h024Bn17PxbD/94WGzlEF4Pgt8GCV0jkUjR6NlRW55KHGX66TPsEFn0p6e/G/IWcJI9ab0n3mvqDLCnKES3Y5KDFiueGji2H9pfuz53PMisEyN/lF9XMqpKKICxFX3CDFtHmE/Jmqe4L2yfPThOzgAJKVHaVQFW5YyqoXKQ/aCn13LONbKPCIN7EYV7yXVM2iwpgLj0r9rKxnW8pxBgVc6VMkqWvL96Vswqz+SECu0vncftumYwkpGmSUhD5Xzu1xdXaga8d0ohwPdP7hLfupQXlVV5i1Djh+K2OnH4KxJViSBYRheTP5Pn+pcSl+vyVkZ4TyEdt8XVnQO8jkxxS9MplJSfqt89/jF9P/1Xy77/VVD6m45OIClvqJoG3JfR+ZVfMu3e/N6gkIW2vVQK+Y86Mfkt8R85WXhOPNLfuSTJVtv55h5BbWO4/UqhLR7tDWQVSfvm0ewmtA9a7KDtlgOXDv2zA9NTCJe/lUhVvpXYNMm3En1LdobjdwTQbxSk7H2o4eV3p+yiUeCKlwRbBbpDm7Y6hvX7pqfQfwt5rt9zZcUNAAAAAElFTkSuQmCC";
+
 function htmlBienvenida(nombreCiudad: string): string {
-  const logoHtml = `<span style="display:inline-block;background:#2d6a4f;width:48px;height:48px;border-radius:8px;text-align:center;line-height:48px;font-family:Georgia,serif;font-size:22px;font-weight:700;color:#fff;">AC</span>`;
+  const logoHtml = `<img src="data:image/png;base64,${LOGO_B64}" width="48" height="48" alt="Acta Civium" style="display:block;margin:0 auto;border-radius:8px;">`;
 
   return `<!DOCTYPE html>
 <html lang="es">
