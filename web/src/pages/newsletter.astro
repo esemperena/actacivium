@@ -11,27 +11,30 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
   title="Newsletter · Acta Civium"
   description="Suscríbete a Acta Civium y recibe cada semana un resumen de los acuerdos municipales que más afectan a la ciudadanía."
 >
-  <div class="max-w-2xl mx-auto">
-    <div class="section-rule mb-8">
-      <span class="text-xs font-bold uppercase tracking-widest">Newsletter</span>
+
+  <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
+  <section class="nl-hero -mx-8 -mt-8">
+    <div class="nl-hero-inner">
+      <div class="nl-eyebrow">
+        <span class="nl-dot" />
+        Newsletter
+      </div>
+      <h1 class="nl-h1">El pleno en tu bandeja<br /><em>de entrada</em></h1>
+      <p class="nl-subtitle">
+        Cada vez que hay un nuevo pleno, te enviamos un resumen de las decisiones
+        que más importan: vivienda, urbanismo, servicios sociales, medio ambiente.
+        Sin burocracia, en lenguaje ciudadano.
+      </p>
     </div>
+  </section>
 
-    <h1 class="headline-xl mb-4">El pleno en tu bandeja de entrada</h1>
+  <div class="nl-body">
 
-    <p class="text-lg text-[var(--color-ink-muted)] leading-relaxed mb-8">
-      Cada semana, cuando hay un nuevo pleno, te enviamos un resumen de las decisiones
-      que más importan: vivienda, urbanismo, servicios sociales, medio ambiente.
-      Sin burocracia, en lenguaje ciudadano.
-    </p>
-
-    <!-- Formulario Brevo -->
-    <div class="bg-white border border-[var(--color-border)] p-8 mb-10">
-      <form
-        id="newsletter-form"
-        class="space-y-4"
-      >
-        <div>
-          <label for="email" class="block text-sm font-semibold mb-1">Tu correo electrónico</label>
+    <!-- ── FORMULARIO ────────────────────────────────────────────────────── -->
+    <div class="nl-card">
+      <form id="newsletter-form" class="nl-form">
+        <div class="nl-field">
+          <label for="email" class="nl-label">Tu correo electrónico</label>
           <input
             type="email"
             id="email"
@@ -39,16 +42,16 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
             required
             placeholder="nombre@ejemplo.com"
             value={emailParam}
-            class="w-full border border-[var(--color-border)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            class="nl-input"
           />
         </div>
-        <div>
-          <label for="ciudad" class="block text-sm font-semibold mb-1">Tu ciudad</label>
+        <div class="nl-field">
+          <label for="ciudad" class="nl-label">Tu ciudad</label>
           <select
             id="ciudad"
             name="ciudad"
             required
-            class="w-full border border-[var(--color-border)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+            class="nl-input"
           >
             <option value="" disabled selected={!ciudadParam}>Selecciona una ciudad…</option>
             {municipios.map((m) => (
@@ -58,49 +61,50 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
             ))}
           </select>
         </div>
-        <button
-          type="submit"
-          class="w-full bg-[var(--color-accent)] text-white font-bold py-3 text-sm hover:bg-[#0f2a1a] transition-colors"
-        >
-          Suscribirme →
-        </button>
-        <p class="text-xs text-[var(--color-ink-muted)] text-center">
+        <button type="submit" class="nl-btn">Suscribirme →</button>
+        <p class="nl-disclaimer">
           Sin spam. Frecuencia: cuando hay pleno nuevo (cada 3-6 semanas).
           Puedes darte de baja en cualquier momento.
         </p>
       </form>
-      <div id="form-success" class="hidden text-center py-6">
-        <p class="font-serif text-xl font-bold text-[var(--color-accent)] mb-2">¡Suscripción confirmada!</p>
-        <p class="text-sm text-[var(--color-ink-muted)]">Te avisaremos cuando haya nuevo pleno en tu ciudad.<br>Revisa tu bandeja de entrada: te hemos enviado un email de bienvenida.</p>
+
+      <div id="form-success" class="hidden nl-success">
+        <p class="nl-success-title">¡Suscripción confirmada!</p>
+        <p class="nl-success-sub">Te avisaremos cuando haya nuevo pleno en tu ciudad.<br />Revisa tu bandeja de entrada: te hemos enviado un email de bienvenida.</p>
       </div>
-      <div id="form-error" class="hidden">
-        <p class="text-sm text-red-700 bg-red-50 border border-red-200 px-4 py-3 text-center" id="form-error-msg">
+
+      <div id="form-error" class="hidden nl-error-wrap">
+        <p id="form-error-msg" class="nl-error-msg">
           Error al procesar la suscripción. Inténtalo de nuevo.
         </p>
       </div>
     </div>
 
-    <!-- Qué incluye -->
-    <div class="section-rule mb-6">
-      <span class="text-xs font-bold uppercase tracking-widest">Qué incluye cada número</span>
-    </div>
+    <!-- ── QUÉ INCLUYE ───────────────────────────────────────────────────── -->
+    <section class="nl-section">
+      <div class="section-header">
+        <span class="section-label-text">Qué incluye cada número</span>
+        <div class="section-line" />
+      </div>
 
-    <ul class="space-y-4 mb-10">
-      {[
-        ["Resumen ejecutivo", "Las 3-5 decisiones más importantes del pleno en lenguaje ciudadano."],
-        ["Votaciones clave", "Quién votó qué y por qué importa. Qué rechazó la mayoría."],
-        ["Enfoque social y ambiental", "Impacto en vivienda, servicios sociales, medio ambiente y derechos."],
-        ["Fuente siempre accesible", "Enlace al acta oficial y a nuestra base de datos para profundizar."],
-      ].map(([titulo, desc]) => (
-        <li class="flex gap-4 border-b border-[var(--color-border)] pb-4 last:border-0">
-          <span class="text-[var(--color-accent)] font-serif font-bold text-xl leading-none mt-0.5">·</span>
-          <div>
-            <p class="font-semibold text-sm">{titulo}</p>
-            <p class="text-sm text-[var(--color-ink-muted)]">{desc}</p>
-          </div>
-        </li>
-      ))}
-    </ul>
+      <ul class="nl-items">
+        {[
+          ["Resumen ejecutivo", "Las 3-5 decisiones más importantes del pleno en lenguaje ciudadano."],
+          ["Votaciones clave", "Quién votó qué y por qué importa. Qué rechazó la mayoría."],
+          ["Enfoque social y ambiental", "Impacto en vivienda, servicios sociales, medio ambiente y derechos."],
+          ["Fuente siempre accesible", "Enlace al acta oficial y a nuestra base de datos para profundizar."],
+        ].map(([titulo, desc]) => (
+          <li class="nl-item">
+            <span class="nl-item-dot">·</span>
+            <div>
+              <p class="nl-item-title">{titulo}</p>
+              <p class="nl-item-desc">{desc}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+
   </div>
 </Base>
 
@@ -146,7 +150,6 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
     await suscribir(email, ciudad);
   });
 
-  // Si la página se abre con ?email=...&ciudad=... (desde la home), suscribir automáticamente
   const params = new URLSearchParams(window.location.search);
   const autoEmail = params.get("email");
   const autoCiudad = params.get("ciudad");
@@ -154,3 +157,173 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
     await suscribir(autoEmail, autoCiudad);
   }
 </script>
+
+<style>
+  /* Hero */
+  .nl-hero {
+    padding: 72px 32px 64px;
+    text-align: center;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% -10%, oklch(92% 0.04 158 / 0.35) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 30% at 80% 110%, oklch(94% 0.025 195 / 0.25) 0%, transparent 65%);
+  }
+  .nl-hero-inner { max-width: 640px; margin: 0 auto; }
+  .nl-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin-bottom: 20px;
+  }
+  .nl-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-accent);
+  }
+  .nl-h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(2rem, 4.5vw, 3.25rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    color: var(--color-ink);
+    margin-bottom: 20px;
+  }
+  .nl-h1 em { font-style: italic; color: var(--color-accent); }
+  .nl-subtitle {
+    font-size: clamp(0.9375rem, 1.5vw, 1.0625rem);
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* Body layout */
+  .nl-body {
+    max-width: 560px;
+    margin: 0 auto;
+    padding-top: 48px;
+  }
+
+  /* Form card */
+  .nl-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 32px;
+    margin-bottom: 48px;
+  }
+  .nl-form { display: flex; flex-direction: column; gap: 16px; }
+  .nl-field { display: flex; flex-direction: column; gap: 6px; }
+  .nl-label { font-size: 0.875rem; font-weight: 600; color: var(--color-ink); }
+  .nl-input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    color: var(--color-ink);
+    background: white;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .nl-input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px oklch(42% 0.13 158 / 0.1);
+  }
+  .nl-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: var(--color-accent);
+    color: white;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .nl-btn:hover { background: oklch(36% 0.13 158); transform: translateY(-1px); }
+  .nl-btn:active { transform: translateY(0); }
+  .nl-disclaimer {
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* States */
+  .nl-success { text-align: center; padding: 24px 0 8px; }
+  .nl-success-title {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    margin-bottom: 8px;
+  }
+  .nl-success-sub { font-size: 0.875rem; color: var(--color-ink-muted); line-height: 1.65; }
+  .nl-error-wrap { margin-top: 8px; }
+  .nl-error-msg {
+    font-size: 0.875rem;
+    color: var(--color-red);
+    background: var(--color-red-bg);
+    border: 1px solid oklch(44% 0.15 22 / 0.2);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    text-align: center;
+  }
+
+  /* Content section */
+  .nl-section { padding-bottom: 48px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .section-label-text {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+    white-space: nowrap;
+  }
+  .section-line { flex: 1; height: 1px; background: var(--color-border); }
+
+  /* Items list */
+  .nl-items { list-style: none; display: flex; flex-direction: column; gap: 0; }
+  .nl-item {
+    display: flex;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .nl-item:last-child { border-bottom: none; }
+  .nl-item-dot {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    line-height: 1;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  .nl-item-title { font-size: 0.875rem; font-weight: 600; color: var(--color-ink); margin-bottom: 2px; }
+  .nl-item-desc { font-size: 0.875rem; color: var(--color-ink-muted); line-height: 1.6; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .nl-hero { padding: 48px 16px 40px; }
+    .nl-card { padding: 24px; }
+  }
+</style>
