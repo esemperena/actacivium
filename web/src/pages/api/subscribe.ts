@@ -140,6 +140,11 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const apiKey = import.meta.env.BREVO_API_KEY;
+  if (!apiKey) {
+    console.error("[subscribe] BREVO_API_KEY no está configurada en el entorno");
+    return new Response(JSON.stringify({ error: "Configuración del servidor incompleta (API key)" }), { status: 500 });
+  }
+
   const nombreCiudad = municipio.nombre_alt ?? municipio.nombre;
 
   const res = await fetch("https://api.brevo.com/v3/contacts", {
