@@ -89,10 +89,7 @@ const currentPath = Astro.url.pathname;
         <nav style="display: flex; gap: 4px;">
           {[
             { href: "/",          label: "Inicio"      },
-            { href: "/actas",     label: "Actas"       },
-            { href: "/temas",     label: "Por tema"    },
             { href: "/newsletter",label: "Newsletter"  },
-            { href: "/sobre",     label: "Sobre el proyecto" },
           ].map(({ href, label }) => {
             const active = currentPath === href || (href !== "/" && currentPath.startsWith(href));
             return (
