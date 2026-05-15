@@ -70,10 +70,7 @@ const isHome = currentPath === "/";
         <nav class="main-nav">
           {[
             { href: "/",           label: "Inicio"     },
-            { href: "/actas",      label: "Actas"      },
-            { href: "/temas",      label: "Por tema"   },
             { href: "/newsletter", label: "Newsletter" },
-            { href: "/sobre",      label: "Sobre"      },
           ].map(({ href, label }) => {
             const active = currentPath === href || (href !== "/" && currentPath.startsWith(href));
             return (
