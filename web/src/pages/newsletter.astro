@@ -69,9 +69,14 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
           Puedes darte de baja en cualquier momento.
         </p>
       </form>
-      <div id="form-success" class="hidden text-center py-4">
-        <p class="font-serif text-lg font-bold text-[var(--color-accent)] mb-1">¡Suscripción confirmada!</p>
-        <p class="text-sm text-[var(--color-ink-muted)]">Te avisaremos cuando haya nuevo pleno en tu ciudad.</p>
+      <div id="form-success" class="hidden text-center py-6">
+        <p class="font-serif text-xl font-bold text-[var(--color-accent)] mb-2">¡Suscripción confirmada!</p>
+        <p class="text-sm text-[var(--color-ink-muted)]">Te avisaremos cuando haya nuevo pleno en tu ciudad.<br>Revisa tu bandeja de entrada: te hemos enviado un email de bienvenida.</p>
+      </div>
+      <div id="form-error" class="hidden">
+        <p class="text-sm text-red-700 bg-red-50 border border-red-200 px-4 py-3 text-center" id="form-error-msg">
+          Error al procesar la suscripción. Inténtalo de nuevo.
+        </p>
       </div>
     </div>
 
@@ -100,15 +105,12 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
 </Base>
 
 <script>
-  // Integración con Brevo API (se configura con la variable de entorno en el server)
-  // Por ahora redirige a la URL de suscripción de Brevo
-  const BREVO_LIST_ID = import.meta.env.PUBLIC_BREVO_LIST_ID;
   const BREVO_API_URL = import.meta.env.PUBLIC_BREVO_API_URL ?? "/api/subscribe";
 
-  document.getElementById("newsletter-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = (document.getElementById("email") as HTMLInputElement).value;
-    const ciudad = (document.getElementById("ciudad") as HTMLSelectElement).value;
+  async function suscribir(email: string, ciudad: string) {
+    const btn = document.querySelector<HTMLButtonElement>("#newsletter-form button[type=submit]")!;
+    btn.disabled = true;
+    btn.textContent = "Suscribiendo…";
 
     try {
       const res = await fetch(BREVO_API_URL, {
@@ -119,10 +121,36 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
 
       if (res.ok) {
         document.getElementById("newsletter-form")!.classList.add("hidden");
+        document.getElementById("form-error")!.classList.add("hidden");
         document.getElementById("form-success")!.classList.remove("hidden");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const msg = data.error ?? "Error al procesar la suscripción. Inténtalo de nuevo.";
+        document.getElementById("form-error-msg")!.textContent = msg;
+        document.getElementById("form-error")!.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = "Suscribirme →";
       }
     } catch {
-      alert("Error al procesar la suscripción. Inténtalo de nuevo.");
+      document.getElementById("form-error-msg")!.textContent = "Error de red. Comprueba tu conexión e inténtalo de nuevo.";
+      document.getElementById("form-error")!.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Suscribirme →";
     }
+  }
+
+  document.getElementById("newsletter-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = (document.getElementById("email") as HTMLInputElement).value;
+    const ciudad = (document.getElementById("ciudad") as HTMLSelectElement).value;
+    await suscribir(email, ciudad);
   });
+
+  // Si la página se abre con ?email=...&ciudad=... (desde la home), suscribir automáticamente
+  const params = new URLSearchParams(window.location.search);
+  const autoEmail = params.get("email");
+  const autoCiudad = params.get("ciudad");
+  if (autoEmail && autoCiudad) {
+    await suscribir(autoEmail, autoCiudad);
+  }
 </script>
