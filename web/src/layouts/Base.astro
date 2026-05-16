@@ -58,19 +58,6 @@ const currentPath = Astro.url.pathname;
 
   <body class="min-h-screen flex flex-col">
 
-    <!-- ── Franja utilitaria superior ────────────────────────────────────── -->
-    <div style="border-bottom: 1px solid var(--color-border); padding: 5px 32px; display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-size: 0.6875rem; color: var(--color-ink-subtle); letter-spacing: 0.05em;">
-        San Sebastián · Plenos Municipales
-      </span>
-      <a
-        href="/newsletter"
-        style="font-size: 0.6875rem; font-weight: 600; color: var(--color-accent-mid);"
-      >
-        Suscríbete a la newsletter →
-      </a>
-    </div>
-
     <!-- ── Cabecera principal ─────────────────────────────────────────────── -->
     <header style="background: var(--color-bg-card); border-bottom: 1px solid var(--color-border); position: sticky; top: 0; z-index: 100;">
       <div style="max-width: 1200px; margin: 0 auto; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between;">
@@ -134,7 +121,7 @@ const currentPath = Astro.url.pathname;
               </span>
             </div>
             <p style="font-size: 0.875rem; line-height: 1.65; color: oklch(60% 0.01 255); max-width: 320px;">
-              Transparencia municipal desde una perspectiva ciudadana, social y medioambiental. Código abierto.
+              Transparencia municipal desde una perspectiva ciudadana, social y medioambiental.
             </p>
           </div>
 
@@ -146,9 +133,7 @@ const currentPath = Astro.url.pathname;
             <ul style="list-style: none; display: flex; flex-direction: column; gap: 6px;">
               {[
                 ["/actas", "Actas de plenos"],
-                ["/temas", "Por tema"],
                 ["/newsletter", "Newsletter"],
-                ["/sobre", "Sobre el proyecto"],
               ].map(([href, label]) => (
                 <li>
                   <a href={href} style="font-size: 0.875rem; color: oklch(65% 0.01 255); text-decoration: none; transition: color 0.15s;"
@@ -167,18 +152,12 @@ const currentPath = Astro.url.pathname;
             </p>
             <p style="font-size: 0.875rem; color: white; margin-bottom: 4px;">San Sebastián · Donostia</p>
             <p style="font-size: 0.8125rem; color: oklch(45% 0.008 255); font-style: italic;">Más municipios próximamente</p>
-            <p style="margin-top: 16px; font-size: 0.75rem; color: oklch(40% 0.008 255);">
-              Fuente: <a href="https://www.donostia.eus" target="_blank" rel="noopener" style="text-decoration: underline; color: inherit;">donostia.eus</a>
-            </p>
           </div>
         </div>
 
         <div style="padding-top: 20px; border-top: 1px solid oklch(28% 0.01 255); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
           <span style="font-size: 0.75rem; color: oklch(45% 0.008 255);">
-            © {new Date().getFullYear()} Acta Civium · Proyecto de código abierto · MIT License
-          </span>
-          <span style="font-size: 0.75rem; color: oklch(45% 0.008 255);">
-            Datos: Ayuntamiento de San Sebastián · CC BY 4.0
+            © {new Date().getFullYear()} Acta Civium
           </span>
         </div>
       </div>
