@@ -337,7 +337,7 @@ def obtener_datos_pleno(pleno_id: str) -> dict | None:
     client = get_client()
 
     r = client.table("plenos").select(
-        "id, fecha, tipo_sesion, resumen_ia, n_puntos, n_asistentes, n_ausentes, numero"
+        "id, fecha, tipo_sesion, resumen_ia, n_puntos, n_asistentes, n_ausentes, numero_acta"
     ).eq("id", pleno_id).single().execute()
     if not r.data:
         return None
@@ -400,7 +400,7 @@ def generar_html(datos: dict, ciudad: str = "San Sebastián") -> str:
     rechazados  = datos["rechazados"]
     composicion = datos.get("composicion", [])
     n_puntos    = datos.get("n_resolutivos") or pleno.get("n_puntos", 0)
-    numero      = pleno.get("numero") or "—"
+    numero      = pleno.get("numero_acta") or "—"
 
     fecha_fmt = _fecha_larga(pleno.get("fecha", ""))
     tipo      = (pleno.get("tipo_sesion", "ordinaria") or "ordinaria").capitalize()

@@ -9,17 +9,20 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
 
 <Base
   title="Newsletter · Acta Civium"
-  description="Suscríbete a Acta Civium y recibe cada semana un resumen de los acuerdos municipales que más afectan a la ciudadanía."
+  description="Suscríbete a Acta Civium y recibe un resumen del pleno municipal cuando hay sesión nueva: vivienda, urbanismo, servicios sociales, medio ambiente."
 >
 
   <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
-  <section class="nl-hero -mx-8 -mt-8">
+  <section class="nl-hero">
     <div class="nl-hero-inner">
       <div class="nl-eyebrow">
-        <span class="nl-dot" />
-        Newsletter
+        <span class="nl-eyebrow-dot"></span>
+        Newsletter Acta Civium
       </div>
-      <h1 class="nl-h1">El pleno en tu bandeja<br /><em>de entrada</em></h1>
+      <h1 class="nl-h1">
+        El pleno municipal,<br />
+        <em>en tu bandeja de entrada.</em>
+      </h1>
       <p class="nl-subtitle">
         Cada vez que hay un nuevo pleno, te enviamos un resumen de las decisiones
         que más importan: vivienda, urbanismo, servicios sociales, medio ambiente.
@@ -28,10 +31,23 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
     </div>
   </section>
 
-  <div class="nl-body">
+  <!-- ── FORMULARIO ────────────────────────────────────────────────────────── -->
+  <div class="nl-form-wrap">
+    <div class="nl-card" id="form-card">
 
-    <!-- ── FORMULARIO ────────────────────────────────────────────────────── -->
-    <div class="nl-card">
+      <div class="nl-card-header">
+        <div class="nl-card-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M2.5 4.5h13a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="m2.5 5 6.5 5 6.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="nl-card-headings">
+          <div class="nl-card-title">Suscríbete gratis</div>
+          <div class="nl-card-sub">Sin spam · Cancela cuando quieras</div>
+        </div>
+      </div>
+
       <form id="newsletter-form" class="nl-form">
         <div class="nl-field">
           <label for="email" class="nl-label">Tu correo electrónico</label>
@@ -40,7 +56,7 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
             id="email"
             name="email"
             required
-            placeholder="nombre@ejemplo.com"
+            placeholder="tu@email.com"
             value={emailParam}
             class="nl-input"
           />
@@ -51,7 +67,7 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
             id="ciudad"
             name="ciudad"
             required
-            class="nl-input"
+            class="nl-select"
           >
             <option value="" disabled selected={!ciudadParam}>Selecciona una ciudad…</option>
             {municipios.map((m) => (
@@ -63,49 +79,159 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
         </div>
         <button type="submit" class="nl-btn">Suscribirme →</button>
         <p class="nl-disclaimer">
-          Sin spam. Frecuencia: cuando hay pleno nuevo (cada 3-6 semanas).
+          Frecuencia: cuando hay pleno nuevo (cada 3-6 semanas).
           Puedes darte de baja en cualquier momento.
         </p>
       </form>
 
-      <div id="form-success" class="hidden nl-success">
-        <p class="nl-success-title">¡Suscripción confirmada!</p>
-        <p class="nl-success-sub">Te avisaremos cuando haya nuevo pleno en tu ciudad.<br />Revisa tu bandeja de entrada: te hemos enviado un email de bienvenida.</p>
-      </div>
+    </div>
 
-      <div id="form-error" class="hidden nl-error-wrap">
-        <p id="form-error-msg" class="nl-error-msg">
-          Error al procesar la suscripción. Inténtalo de nuevo.
-        </p>
+    <!-- State messages (outside card, below it) -->
+    <div id="form-success" class="hidden nl-state-msg nl-state-success">
+      <svg class="nl-state-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/>
+        <path d="m5.5 9 2.5 2.5L12.5 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <div class="nl-state-title">¡Suscripción confirmada!</div>
+        <div class="nl-state-body">
+          Te avisaremos cuando haya nuevo pleno en tu ciudad. Revisa tu bandeja de entrada — te hemos enviado un email de bienvenida.
+        </div>
       </div>
     </div>
 
-    <!-- ── QUÉ INCLUYE ───────────────────────────────────────────────────── -->
-    <section class="nl-section">
-      <div class="section-header">
-        <span class="section-label-text">Qué incluye cada número</span>
-        <div class="section-line" />
+    <div id="form-error" class="hidden nl-state-msg nl-state-error">
+      <svg class="nl-state-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M9 5v4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="9" cy="12.5" r="0.8" fill="currentColor"/>
+      </svg>
+      <div>
+        <div class="nl-state-title">Error al procesar la suscripción</div>
+        <div id="form-error-msg" class="nl-state-body">
+          Inténtalo de nuevo en unos segundos. Si el problema persiste, escríbenos.
+        </div>
+      </div>
+    </div>
+
+    <!-- Trust signals -->
+    <div class="nl-trust-row">
+      <div class="nl-trust-item">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2.5 7.5 5.5 10.5 11.5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Sin spam</span>
+      </div>
+      <div class="nl-trust-item">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2.5 7.5 5.5 10.5 11.5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Código abierto</span>
+      </div>
+      <div class="nl-trust-item">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2.5 7.5 5.5 10.5 11.5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>1-click baja</span>
+      </div>
+      <div class="nl-trust-item">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2.5 7.5 5.5 10.5 11.5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Datos en España</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PREVIEW ────────────────────────────────────────────────────────────── -->
+  <section class="nl-preview-section">
+    <div class="nl-preview-inner">
+      <div class="nl-preview-left">
+        <div class="nl-section-label">Una muestra</div>
+        <h2 class="nl-preview-title">Así se ve un número típico</h2>
+        <p class="nl-preview-desc">
+          Resúmenes cortos, decisiones destacadas con su resultado a la vista,
+          y siempre el enlace al acta oficial para profundizar.
+        </p>
+        <div class="nl-preview-bullet">
+          <span class="nl-bullet-check">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="m2 5 2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span>Lectura en 3 minutos</span>
+        </div>
+        <div class="nl-preview-bullet">
+          <span class="nl-bullet-check">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="m2 5 2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span>Decisiones aprobadas y rechazadas, con votación</span>
+        </div>
+        <div class="nl-preview-bullet">
+          <span class="nl-bullet-check">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="m2 5 2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span>Enlaces al acta original y a los puntos en detalle</span>
+        </div>
       </div>
 
-      <ul class="nl-items">
-        {[
-          ["Resumen ejecutivo", "Las 3-5 decisiones más importantes del pleno en lenguaje ciudadano."],
-          ["Votaciones clave", "Quién votó qué y por qué importa. Qué rechazó la mayoría."],
-          ["Enfoque social y ambiental", "Impacto en vivienda, servicios sociales, medio ambiente y derechos."],
-          ["Fuente siempre accesible", "Enlace al acta oficial y a nuestra base de datos para profundizar."],
-        ].map(([titulo, desc]) => (
-          <li class="nl-item">
-            <span class="nl-item-dot">·</span>
-            <div>
-              <p class="nl-item-title">{titulo}</p>
-              <p class="nl-item-desc">{desc}</p>
+      <!-- Email mockup -->
+      <div class="nl-email-mockup" aria-hidden="true">
+        <div class="nl-email-bar">
+          <span class="nl-email-dot"></span>
+          <span class="nl-email-dot"></span>
+          <span class="nl-email-dot"></span>
+          <span class="nl-email-meta">Acta Civium · newsletter@actacivium.eu</span>
+        </div>
+        <div class="nl-email-body">
+          <div class="nl-email-from">
+            <strong>Acta Civium</strong> &lt;newsletter@actacivium.eu&gt;
+          </div>
+          <div class="nl-email-subject">
+            San Sebastián · Pleno nº 44 — Mociones sobre movilidad, vivienda y transporte
+          </div>
+          <div class="nl-email-issue">Número 44 · 26 feb 2026</div>
+          <div class="nl-email-title">
+            El pleno aprueba impulsar vivienda en Loiola y rechaza ayuda al polígono de Zuatzu
+          </div>
+          <p class="nl-email-line">
+            La sesión ordinaria de febrero estuvo marcada por tres mociones del PP y PSE-EE. Resumen:
+          </p>
+          <div class="nl-email-decisions">
+            <div class="nl-email-dec-item">
+              <span class="nl-dec-dot aprobado"></span>
+              <span><strong>Aprobado</strong> · Impulsar vivienda en la parcela G.000.2 de Riberas de Loiola.</span>
             </div>
-          </li>
-        ))}
-      </ul>
-    </section>
+            <div class="nl-email-dec-item">
+              <span class="nl-dec-dot aprobado"></span>
+              <span><strong>Aprobado</strong> · Resolver fallos del sistema de transporte Mugi (NFC, virtual, descuentos).</span>
+            </div>
+            <div class="nl-email-dec-item">
+              <span class="nl-dec-dot rechazado"></span>
+              <span><strong>Rechazado</strong> · Mejoras de movilidad para trabajadores del polígono Zuatzu.</span>
+            </div>
+          </div>
+          <a href="#" class="nl-email-cta">Leer el acta completa →</a>
+        </div>
+      </div>
+    </div>
+  </section>
 
+  <!-- ── CTA FINAL ──────────────────────────────────────────────────────────── -->
+  <div class="nl-cta2-wrap">
+    <div class="nl-cta2-inner">
+      <h2 class="nl-cta2-title">¿Listo para no perderte ningún pleno?</h2>
+      <p class="nl-cta2-sub">
+        Suscríbete arriba y recibe el próximo número directamente en tu correo.
+      </p>
+      <a href="#form-card" class="nl-cta2-anchor">Suscribirme ahora</a>
+    </div>
   </div>
+
 </Base>
 
 <script>
@@ -129,7 +255,7 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
         document.getElementById("form-success")!.classList.remove("hidden");
       } else {
         const data = await res.json().catch(() => ({}));
-        const msg = data.error ?? "Error al procesar la suscripción. Inténtalo de nuevo.";
+        const msg = data.error ?? "Error al procesar la suscripción. Inténtalo de nuevo en unos segundos. Si el problema persiste, escríbenos.";
         document.getElementById("form-error-msg")!.textContent = msg;
         document.getElementById("form-error")!.classList.remove("hidden");
         btn.disabled = false;
@@ -159,15 +285,24 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
 </script>
 
 <style>
-  /* Hero */
+  /* ── Hero ───────────────────────────────────────────────────────────────── */
   .nl-hero {
-    padding: 72px 32px 64px;
+    margin: -2rem -2rem 0;
+    padding: 80px 32px 56px;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+    background: var(--color-bg);
+  }
+  .nl-hero::before {
+    content: '';
+    position: absolute; inset: 0;
     background:
       radial-gradient(ellipse 70% 55% at 50% -10%, oklch(92% 0.04 158 / 0.35) 0%, transparent 70%),
       radial-gradient(ellipse 50% 30% at 80% 110%, oklch(94% 0.025 195 / 0.25) 0%, transparent 65%);
+    pointer-events: none;
   }
-  .nl-hero-inner { max-width: 640px; margin: 0 auto; }
+  .nl-hero-inner { max-width: 720px; margin: 0 auto; position: relative; }
   .nl-eyebrow {
     display: inline-flex;
     align-items: center;
@@ -177,153 +312,401 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
     letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--color-accent);
-    margin-bottom: 20px;
+    margin-bottom: 28px;
   }
-  .nl-dot {
+  .nl-eyebrow-dot {
     display: inline-block;
-    width: 5px;
-    height: 5px;
+    width: 5px; height: 5px;
     border-radius: 50%;
     background: var(--color-accent);
+    opacity: 0.5;
   }
   .nl-h1 {
     font-family: var(--font-serif);
-    font-size: clamp(2rem, 4.5vw, 3.25rem);
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.08;
     letter-spacing: -0.025em;
     color: var(--color-ink);
-    margin-bottom: 20px;
+    margin-bottom: 22px;
   }
   .nl-h1 em { font-style: italic; color: var(--color-accent); }
   .nl-subtitle {
-    font-size: clamp(0.9375rem, 1.5vw, 1.0625rem);
+    font-size: clamp(1rem, 1.6vw, 1.125rem);
     line-height: 1.7;
     color: var(--color-ink-muted);
-    max-width: 480px;
-    margin: 0 auto;
-  }
-
-  /* Body layout */
-  .nl-body {
     max-width: 560px;
     margin: 0 auto;
-    padding-top: 48px;
   }
 
-  /* Form card */
+  /* ── Form wrap ──────────────────────────────────────────────────────────── */
+  .nl-form-wrap {
+    margin: 0 -2rem;
+    padding: 0 32px 88px;
+  }
+
+  /* ── Form card ──────────────────────────────────────────────────────────── */
   .nl-card {
+    max-width: 540px;
+    margin: 0 auto;
     background: var(--color-bg-card);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    padding: 32px;
-    margin-bottom: 48px;
+    border-radius: calc(var(--radius) + 4px);
+    padding: 32px 32px 28px;
+    box-shadow: var(--shadow-lg, 0 8px 32px oklch(0% 0 0 / 0.09), 0 2px 8px oklch(0% 0 0 / 0.04));
   }
-  .nl-form { display: flex; flex-direction: column; gap: 16px; }
+  .nl-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .nl-card-icon {
+    width: 36px; height: 36px;
+    background: var(--color-accent-light);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-accent);
+    flex-shrink: 0;
+  }
+  .nl-card-headings { flex: 1; }
+  .nl-card-title {
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--color-ink);
+    line-height: 1.2;
+  }
+  .nl-card-sub {
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+    margin-top: 2px;
+  }
+
+  .nl-form { display: flex; flex-direction: column; gap: 14px; }
   .nl-field { display: flex; flex-direction: column; gap: 6px; }
-  .nl-label { font-size: 0.875rem; font-weight: 600; color: var(--color-ink); }
-  .nl-input {
+  .nl-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+  .nl-input, .nl-select {
     width: 100%;
     padding: 11px 14px;
-    border: 1px solid var(--color-border-strong);
-    border-radius: var(--radius);
     font-family: var(--font-sans);
     font-size: 0.9375rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius);
+    background: var(--color-bg-card);
     color: var(--color-ink);
-    background: white;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .nl-input:focus {
+  .nl-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2399a0a8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+    cursor: pointer;
+  }
+  .nl-input:focus, .nl-select:focus {
     border-color: var(--color-accent);
     box-shadow: 0 0 0 3px oklch(42% 0.13 158 / 0.1);
   }
   .nl-btn {
     width: 100%;
-    padding: 12px 20px;
-    background: var(--color-accent);
-    color: white;
+    padding: 12px 22px;
     font-family: var(--font-sans);
     font-size: 0.9375rem;
     font-weight: 600;
+    background: var(--color-accent);
+    color: white;
     border: none;
     border-radius: var(--radius);
     cursor: pointer;
-    transition: background 0.15s, transform 0.15s;
+    transition: background 0.15s, transform 0.1s;
+    margin-top: 4px;
   }
-  .nl-btn:hover { background: oklch(36% 0.13 158); transform: translateY(-1px); }
+  .nl-btn:hover { background: oklch(38% 0.13 158); transform: translateY(-1px); }
   .nl-btn:active { transform: translateY(0); }
+  .nl-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
   .nl-disclaimer {
     font-size: 0.75rem;
     color: var(--color-ink-subtle);
+    line-height: 1.6;
     text-align: center;
-    line-height: 1.5;
   }
 
-  /* States */
-  .nl-success { text-align: center; padding: 24px 0 8px; }
-  .nl-success-title {
-    font-family: var(--font-serif);
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--color-accent);
-    margin-bottom: 8px;
-  }
-  .nl-success-sub { font-size: 0.875rem; color: var(--color-ink-muted); line-height: 1.65; }
-  .nl-error-wrap { margin-top: 8px; }
-  .nl-error-msg {
-    font-size: 0.875rem;
-    color: var(--color-red);
-    background: var(--color-red-bg);
-    border: 1px solid oklch(44% 0.15 22 / 0.2);
+  /* ── State messages ─────────────────────────────────────────────────────── */
+  .nl-state-msg {
+    max-width: 540px;
+    margin: 16px auto 0;
+    padding: 14px 18px;
     border-radius: var(--radius);
-    padding: 10px 14px;
-    text-align: center;
-  }
-
-  /* Content section */
-  .nl-section { padding-bottom: 48px; }
-  .section-header {
+    font-size: 0.875rem;
     display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
+    align-items: flex-start;
+    gap: 10px;
   }
-  .section-label-text {
+  .nl-state-success {
+    background: var(--color-green-bg);
+    border: 1px solid oklch(85% 0.04 155);
+    color: var(--color-green);
+  }
+  .nl-state-error {
+    background: var(--color-red-bg);
+    border: 1px solid oklch(85% 0.04 22);
+    color: var(--color-red);
+  }
+  .nl-state-icon { flex-shrink: 0; margin-top: 1px; }
+  .nl-state-title { font-weight: 600; margin-bottom: 2px; }
+  .nl-state-body { font-size: 0.8125rem; line-height: 1.5; opacity: 0.85; }
+
+  /* ── Trust row ──────────────────────────────────────────────────────────── */
+  .nl-trust-row {
+    max-width: 540px;
+    margin: 24px auto 0;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 18px 24px;
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+  }
+  .nl-trust-item { display: flex; align-items: center; gap: 6px; }
+  .nl-trust-item svg { color: var(--color-accent); flex-shrink: 0; }
+
+  /* ── Preview section ────────────────────────────────────────────────────── */
+  .nl-preview-section {
+    margin: 0 -2rem;
+    background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-accent-xlight) 100%);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .nl-preview-inner {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 72px 32px;
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  .nl-section-label {
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--color-ink-subtle);
-    white-space: nowrap;
-  }
-  .section-line { flex: 1; height: 1px; background: var(--color-border); }
-
-  /* Items list */
-  .nl-items { list-style: none; display: flex; flex-direction: column; gap: 0; }
-  .nl-item {
+    margin-bottom: 20px;
     display: flex;
-    gap: 16px;
-    padding: 16px 0;
+    align-items: center;
+    gap: 10px;
+  }
+  .nl-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+    max-width: 80px;
+  }
+  .nl-preview-title {
+    font-family: var(--font-serif);
+    font-size: clamp(1.5rem, 2.6vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+    line-height: 1.2;
+    margin-bottom: 14px;
+  }
+  .nl-preview-desc {
+    font-size: 0.9375rem;
+    color: var(--color-ink-muted);
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+  .nl-preview-bullet {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    margin-bottom: 8px;
+  }
+  .nl-bullet-check {
+    width: 18px; height: 18px;
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+
+  /* Email mockup */
+  .nl-email-mockup {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) + 4px);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg, 0 8px 32px oklch(0% 0 0 / 0.09), 0 2px 8px oklch(0% 0 0 / 0.04));
+    transform: rotate(0.3deg);
+  }
+  .nl-email-bar {
+    background: oklch(96% 0.005 230);
+    border-bottom: 1px solid var(--color-border);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nl-email-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: oklch(85% 0.005 230);
+  }
+  .nl-email-meta {
+    margin-left: 10px;
+    font-size: 0.6875rem;
+    color: var(--color-ink-subtle);
+  }
+  .nl-email-body { padding: 24px 26px 22px; }
+  .nl-email-from {
+    font-size: 0.6875rem;
+    color: var(--color-ink-subtle);
+    margin-bottom: 4px;
+  }
+  .nl-email-from strong { color: var(--color-ink); font-weight: 600; }
+  .nl-email-subject {
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--color-ink);
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
     border-bottom: 1px solid var(--color-border);
   }
-  .nl-item:last-child { border-bottom: none; }
-  .nl-item-dot {
+  .nl-email-issue {
+    font-size: 0.625rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .nl-email-title {
     font-family: var(--font-serif);
     font-size: 1.25rem;
     font-weight: 700;
-    color: var(--color-accent);
-    line-height: 1;
-    margin-top: 2px;
-    flex-shrink: 0;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+    line-height: 1.25;
+    margin-bottom: 14px;
   }
-  .nl-item-title { font-size: 0.875rem; font-weight: 600; color: var(--color-ink); margin-bottom: 2px; }
-  .nl-item-desc { font-size: 0.875rem; color: var(--color-ink-muted); line-height: 1.6; }
+  .nl-email-line {
+    font-size: 0.8125rem;
+    color: var(--color-ink-muted);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .nl-email-decisions {
+    background: var(--color-accent-xlight);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin: 12px 0;
+  }
+  .nl-email-dec-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--color-ink);
+    line-height: 1.45;
+    padding: 5px 0;
+  }
+  .nl-email-dec-item:not(:last-child) {
+    border-bottom: 1px solid oklch(90% 0.02 158);
+  }
+  .nl-dec-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 6px;
+  }
+  .nl-dec-dot.aprobado { background: var(--color-green); }
+  .nl-dec-dot.rechazado { background: var(--color-red); }
+  .nl-email-cta {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    margin-top: 4px;
+  }
 
-  /* Responsive */
+  /* ── CTA final ──────────────────────────────────────────────────────────── */
+  .nl-cta2-wrap {
+    margin: 0 -2rem -2rem;
+    background: var(--color-accent-xlight);
+    border-top: 1px solid var(--color-border);
+  }
+  .nl-cta2-inner {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 72px 32px;
+    text-align: center;
+  }
+  .nl-cta2-title {
+    font-family: var(--font-serif);
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 700;
+    color: var(--color-ink);
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+  }
+  .nl-cta2-sub {
+    font-size: 0.9375rem;
+    color: var(--color-ink-muted);
+    line-height: 1.65;
+    margin-bottom: 24px;
+  }
+  .nl-cta2-anchor {
+    display: inline-block;
+    padding: 11px 24px;
+    background: var(--color-accent);
+    color: white;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border-radius: var(--radius);
+    transition: background 0.15s, transform 0.1s;
+    text-decoration: none;
+  }
+  .nl-cta2-anchor:hover { background: oklch(38% 0.13 158); transform: translateY(-1px); }
+
+  /* ── Responsive ─────────────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .nl-preview-inner {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      padding: 56px 32px;
+    }
+    .nl-email-mockup { transform: none; max-width: 480px; margin: 0 auto; }
+  }
   @media (max-width: 768px) {
-    .nl-hero { padding: 48px 16px 40px; }
-    .nl-card { padding: 24px; }
+    .nl-hero { margin: -1rem -1rem 0; padding: 56px 16px 40px; }
+    .nl-form-wrap { margin: 0 -1rem; padding: 0 16px 64px; }
+    .nl-card { padding: 24px 20px 22px; }
+    .nl-preview-section { margin: 0 -1rem; }
+    .nl-preview-inner { padding: 48px 16px; }
+    .nl-cta2-wrap { margin: 0 -1rem -1rem; }
+    .nl-cta2-inner { padding: 48px 16px; }
   }
 </style>

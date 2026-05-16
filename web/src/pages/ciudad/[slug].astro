@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 import Base from '../../layouts/Base.astro';
+import CityDashboard from '../../components/CityDashboard.astro';
 import PlenoCard from '../../components/PlenoCard.astro';
 import {
   getMunicipio,
@@ -120,6 +121,9 @@ const { summary, categoryStats } = dashboard;
       <div class="metric-label">Gobierno</div>
     </div>
   </div>
+
+  <!-- ── DASHBOARD (Composición, Agenda, Coincidencia) ────────────────── -->
+  <CityDashboard municipio={municipio} dashboard={dashboard} />
 
   <!-- ── PAGE GRID ─────────────────────────────────────────────────────── -->
   <div class="page-grid">

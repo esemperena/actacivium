@@ -292,12 +292,14 @@ def extraer_votaciones_por_punto(texto: str) -> dict[int, dict]:
         return result
 
     # Patrón para encabezado de punto del orden del día.
+    # Usar stems sin tildes para resistir errores de encoding en PDFs bilingües.
     punto_pat = re.compile(
         r"(?:^|\n)[^\n]{0,15}?\b(\d{1,2})[\.\-\s]+(?:"
-        r"Aprobación|Aprobar|Dar\s+cuenta|Dar\s+conocimiento|Ratificación|Ratificar|"
-        r"Moción|Mociones|Toma\s+de|Concesión|Reconocimiento|Enmienda|Declaración|"
-        r"Modificación|Resuelve|Plan|Estudio|Ordenanza|Convocatoria|Habilitación|"
-        r"Inadmitir|Desestim|Elección|Juramento"
+        r"Aprobaci|Aprobar|Dar\s+cuenta|Dar\s+conocimiento|Daci|"
+        r"Ratificaci|Ratificar|Propuesta|Proposici|Interpelaci|Pregunta|Ruego|"
+        r"Moci|Toma\s+de|Concesi|Reconocimiento|Enmienda|Declaraci|"
+        r"Modificaci|Resuelve|Plan|Estudio|Ordenanza|Convocatoria|Habilitaci|"
+        r"Inadmitir|Desestim|Elecci|Juramento|Informe"
         r")",
         re.MULTILINE | re.IGNORECASE,
     )
@@ -314,8 +316,8 @@ def extraer_votaciones_por_punto(texto: str) -> dict[int, dict]:
     for pos, num in all_headings:
         if last_pos > 0 and pos - last_pos > 3000:
             break  # gap grande = fin del sumario, inicio del cuerpo
-        # Filtro: solo números razonables (1-30) son puntos del orden del día
-        if 1 <= num <= 30:
+        # Filtro: solo números razonables (1-60) son puntos del orden del día
+        if 1 <= num <= 60:
             puntos_sumario_set.add(num)
             sumario_end_pos = pos
         last_pos = pos
@@ -339,7 +341,7 @@ def extraer_votaciones_por_punto(texto: str) -> dict[int, dict]:
     # Usar "SE DECLARA ABIERTA" como inicio real de la parte resolutiva. Esto es más
     # robusto que sumario_end_pos, que puede incluir los primeros encabezados de la parte
     # resolutiva si aparecen cerca del sumario (gap < 3000 chars).
-    m_apertura = re.search(r"SE DECLARA ABIERTA\s+LA\s+SESI[ÓO]N", texto, re.IGNORECASE)
+    m_apertura = re.search(r"SE DECLARA ABIERTA", texto, re.IGNORECASE)
     parte_resolutiva_start = m_apertura.start() if m_apertura else sumario_end_pos
 
     valid_headings: list[tuple[int, int]] = []
