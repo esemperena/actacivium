@@ -9,12 +9,11 @@ const BREVO_HEADERS = (apiKey: string) => ({
 const WEB_BASE_URL = import.meta.env.WEB_BASE_URL ?? "https://actacivium.netlify.app";
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Email de bienvenida — alineado con el sistema visual de actacivium.netlify.app
- * Tipos:    Playfair Display (serif, con fallback Georgia)
- *           DM Sans (body, con fallback Helvetica/Arial)
- * Color:    fondo crema #f4f5f0 · acento bosque #1f6a47 · tinta #1c1f24
- * Estructura por <table>, estilos inline, sin background-image, sin SVG.
- * Probado en Gmail (web + iOS), Apple Mail, Outlook (mso safe), Yahoo.
+ * Email de bienvenida v2 — alineado con el sistema visual de actacivium
+ * Tipos:    Playfair Display (serif, fallback Georgia)
+ *           DM Sans (body, fallback Helvetica/Arial)
+ * Color:    header oscuro #1a1d1b · crema #fafaf6 · acento bosque #1f6a47
+ * Estructura por <table>, estilos inline, MSO conditional wrap incluido.
  * ──────────────────────────────────────────────────────────────────────── */
 function htmlBienvenida(nombreCiudad: string): string {
   return `<!DOCTYPE html>
@@ -24,25 +23,34 @@ function htmlBienvenida(nombreCiudad: string): string {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Bienvenida a Acta Civium</title>
   <!--[if !mso]><!-->
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
   <!--<![endif]-->
 </head>
-<body style="margin:0;padding:0;background:#ebece8;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ebece8;padding:32px 16px;">
-<tr><td align="center">
+<body style="margin:0;padding:0;background:#e8eae4;font-family:'DM Sans',Helvetica,Arial,sans-serif;">
 
-<!--[if mso]>
-<table role="presentation" width="620" align="center" cellpadding="0" cellspacing="0"><tr><td>
-<![endif]-->
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="max-width:620px;margin:0 auto;background:#fafaf6;border:1px solid #dde0db;border-radius:8px;">
+<!--[if mso]><table role="presentation" width="620" align="center" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="max-width:620px;margin:0 auto;border-radius:8px;overflow:hidden;border:1px solid #d0d4cc;">
 
-  <!-- HEADER -->
+  <!-- HEADER: dark band -->
   <tr>
-    <td style="padding:36px 36px 22px;border-bottom:1px solid #e3e5df;">
+    <td style="background:#1a1d1b;padding:22px 36px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="font-family:'Playfair Display',Georgia,serif;font-size:19px;font-weight:700;letter-spacing:-0.02em;color:#1c1f24;line-height:1;">Acta Civium</td>
-          <td align="right" style="font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a8a7d;">Núm. 0 · Bienvenida</td>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding-right:10px;vertical-align:middle;">
+                  <img src="https://actacivium.netlify.app/favicon.svg" width="22" height="22" alt="" style="display:block;border:0;" />
+                </td>
+                <td style="font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700;letter-spacing:-0.02em;color:#ffffff;vertical-align:middle;line-height:1;">
+                  Acta Civium
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td align="right" style="font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#5a6660;vertical-align:middle;">
+            Núm. 0 · Bienvenida
+          </td>
         </tr>
       </table>
     </td>
@@ -50,84 +58,85 @@ function htmlBienvenida(nombreCiudad: string): string {
 
   <!-- HERO -->
   <tr>
-    <td style="padding:48px 36px 36px;">
-      <p style="margin:0 0 18px;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#1f6a47;">
-        <span style="display:inline-block;width:5px;height:5px;background:#1f6a47;border-radius:50%;vertical-align:middle;margin-right:8px;opacity:.6;"></span>Bienvenida · ${nombreCiudad}
+    <td style="background:#fafaf6;padding:48px 36px 40px;">
+      <p style="margin:0 0 14px;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#1f6a47;">
+        ● &nbsp;${nombreCiudad}
       </p>
-      <h1 style="margin:0 0 18px;font-family:'Playfair Display',Georgia,serif;font-size:34px;font-weight:700;line-height:1.08;letter-spacing:-0.025em;color:#1c1f24;">
+      <h1 style="margin:0 0 20px;font-family:'Playfair Display',Georgia,serif;font-size:40px;font-weight:700;line-height:1.05;letter-spacing:-0.03em;color:#1a1d1b;">
         El pleno municipal,<br>
-        <em style="font-style:italic;color:#1f6a47;font-weight:600;">explicado.</em>
+        <em style="font-style:italic;color:#1f6a47;">explicado.</em>
       </h1>
-      <p style="margin:0;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:15.5px;line-height:1.65;color:#52555c;max-width:480px;">
-        Gracias por suscribirte. A partir de ahora recibirás un resumen cada vez que el Ayuntamiento de
-        <strong style="color:#1c1f24;font-weight:600;">${nombreCiudad}</strong> celebre un pleno y publique su acta oficial.
+      <p style="margin:0 0 32px;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.65;color:#52555c;max-width:460px;">
+        Gracias por suscribirte. Recibirás un resumen cada vez que el Ayuntamiento de <strong style="color:#1a1d1b;font-weight:600;">${nombreCiudad}</strong> celebre un pleno y publique su acta oficial.
       </p>
+      <a href="${WEB_BASE_URL}" style="display:inline-block;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#fff;background:#1a1d1b;text-decoration:none;padding:14px 26px;border-radius:6px;letter-spacing:0.01em;">
+        Explorar las últimas actas →
+      </a>
     </td>
   </tr>
 
-  <tr><td style="padding:0 36px;"><div style="border-top:1px solid #e3e5df;line-height:0;font-size:0;">&nbsp;</div></td></tr>
+  <!-- DIVIDER -->
+  <tr><td style="background:#fafaf6;padding:0 36px;"><div style="border-top:1px solid #e3e5df;line-height:0;font-size:0;">&nbsp;</div></td></tr>
 
   <!-- CÓMO FUNCIONA -->
   <tr>
-    <td style="padding:32px 36px 8px;">
-      <p style="margin:0 0 22px;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#8b8e94;">Cómo funciona</p>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-        ${[
-          ["01", "El ayuntamiento celebra pleno", "Aproximadamente cada 3–6 semanas. El acta oficial se publica en donostia.eus."],
-          ["02", "Nuestro sistema la procesa",    "Extraemos los puntos, las votaciones por grupo y un resumen en lenguaje ciudadano."],
-          ["03", "Tú recibes el resumen",         "Las decisiones que afectan a tu ciudad, sin tener que leer 90 páginas de acta."],
-        ].map(([num, titulo, desc]) => `
+    <td style="background:#fafaf6;padding:36px 36px 32px;">
+      <p style="margin:0 0 28px;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#9a9e9a;">
+        Cómo funciona
+      </p>
+      ${[
+        ["1", "El ayuntamiento celebra pleno",  "Aproximadamente cada 3–6 semanas. El acta oficial se publica en el portal municipal."],
+        ["2", "Nuestro sistema la procesa",      "Extraemos los puntos, las votaciones por grupo y un resumen en lenguaje ciudadano."],
+        ["3", "Tú recibes el resumen",           "Las decisiones que afectan a tu ciudad, sin tener que leer 90 páginas de acta."],
+      ].map(([num, titulo, desc], i, arr) => `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"${i < arr.length - 1 ? ' style="margin-bottom:20px;"' : ''}>
         <tr>
-          <td width="36" valign="top" style="padding:0 12px 22px 0;">
-            <span style="display:inline-block;font-family:'Playfair Display',Georgia,serif;font-size:22px;font-weight:600;font-style:italic;color:#1f6a47;line-height:1;">${num}</span>
+          <td width="44" valign="top">
+            <div style="width:36px;height:36px;background:#e8f2ec;border-radius:50%;text-align:center;line-height:36px;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;font-style:italic;color:#1f6a47;">${num}</div>
           </td>
-          <td valign="top" style="padding:0 0 22px;">
-            <p style="margin:0 0 4px;font-family:'Playfair Display',Georgia,serif;font-size:16px;font-weight:600;color:#1c1f24;letter-spacing:-0.01em;line-height:1.3;">${titulo}</p>
-            <p style="margin:0;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#52555c;">${desc}</p>
+          <td valign="top" style="padding-top:6px;">
+            <p style="margin:0 0 4px;font-family:'Playfair Display',Georgia,serif;font-size:16px;font-weight:600;color:#1a1d1b;letter-spacing:-0.01em;line-height:1.3;">${titulo}</p>
+            <p style="margin:0;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.6;color:#6b6f74;">${desc}</p>
           </td>
-        </tr>`).join("")}
-      </table>
+        </tr>
+      </table>`).join("")}
     </td>
   </tr>
 
-  <tr><td style="padding:24px 36px 0;"><div style="border-top:1px solid #e3e5df;line-height:0;font-size:0;">&nbsp;</div></td></tr>
-
-  <!-- QUÉ INCLUYE -->
+  <!-- QUÉ ENCONTRARÁS: dark section -->
   <tr>
-    <td style="padding:32px 36px 16px;">
-      <p style="margin:0 0 18px;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#8b8e94;">Qué encontrarás dentro</p>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e3e5df;border-radius:6px;">
-        ${[
-          ["Resumen", "Las <strong style=\"font-weight:600;\">3–5 decisiones más importantes</strong> de cada pleno."],
-          ["Votos",   "<strong style=\"font-weight:600;\">Quién votó qué</strong> y por qué importa."],
-          ["Impacto", "<strong style=\"font-weight:600;\">Vivienda, urbanismo, movilidad,</strong> servicios sociales, derechos…"],
-          ["Fuente",  "<strong style=\"font-weight:600;\">Enlace al acta oficial</strong> para profundizar."],
-        ].map(([tag, html], i, arr) => `
+    <td style="background:#1a1d1b;padding:36px 36px 32px;">
+      <p style="margin:0 0 24px;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#4a5450;">
+        Qué encontrarás dentro
+      </p>
+      ${[
+        ["Resumen", "Las <strong style=\"font-weight:600;color:#eaecde;\">3–5 decisiones más importantes</strong> de cada pleno.", true,  false],
+        ["Votos",   "<strong style=\"font-weight:600;color:#eaecde;\">Quién votó qué</strong> y por qué importa.",                  false, false],
+        ["Impacto", "<strong style=\"font-weight:600;color:#eaecde;\">Vivienda, urbanismo, movilidad,</strong> servicios sociales, derechos…", false, false],
+        ["Fuente",  "<strong style=\"font-weight:600;color:#eaecde;\">Enlace al acta oficial</strong> para profundizar.",            false, true ],
+      ].map(([tag, html, first, last]) => `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;">
         <tr>
-          <td style="padding:16px 18px;${i < arr.length - 1 ? 'border-bottom:1px solid #eceee9;' : ''}">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <td style="padding:14px 16px;background:#242826;border-radius:${first ? '6px 6px 0 0' : last ? '0 0 6px 6px' : '0'};${!last ? 'border-bottom:1px solid #2e3330;' : ''}">
+            <table role="presentation" cellpadding="0" cellspacing="0">
               <tr>
-                <td width="78" valign="middle" style="padding-right:14px;">
-                  <span style="display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#1f6a47;background:#e9f1ea;padding:3px 8px;border-radius:3px;">${tag}</span>
+                <td style="padding-right:14px;vertical-align:middle;">
+                  <span style="display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#4caf80;background:#1f3329;padding:3px 8px;border-radius:3px;white-space:nowrap;">${tag}</span>
                 </td>
-                <td valign="middle" style="font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:14px;color:#1c1f24;line-height:1.5;">${html}</td>
+                <td style="font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:13.5px;color:#c8ccc6;line-height:1.5;vertical-align:middle;">${html}</td>
               </tr>
             </table>
           </td>
-        </tr>`).join("")}
-      </table>
-    </td>
-  </tr>
+        </tr>
+      </table>`).join("")}
 
-  <!-- FRECUENCIA -->
-  <tr>
-    <td style="padding:16px 36px 0;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <!-- Honesty note -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
         <tr>
-          <td style="padding:16px 20px;background:#f3f7f4;border-left:3px solid #1f6a47;border-radius:0 6px 6px 0;">
-            <p style="margin:0;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.65;color:#3a4f43;">
-              <strong style="color:#1f6a47;font-weight:600;">Frecuencia honesta:</strong>
-              solo cuando hay pleno nuevo. Sin spam, sin "contenido patrocinado", sin trampas.
+          <td style="padding:14px 16px;border-left:3px solid #1f6a47;">
+            <p style="margin:0;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.65;color:#7a8a7a;">
+              <strong style="color:#4caf80;font-weight:600;">Frecuencia honesta:</strong>
+              solo cuando hay pleno nuevo. Sin spam, sin patrocinadores, sin trampas.
             </p>
           </td>
         </tr>
@@ -135,39 +144,30 @@ function htmlBienvenida(nombreCiudad: string): string {
     </td>
   </tr>
 
-  <!-- CTA -->
-  <tr>
-    <td align="center" style="padding:36px 36px 8px;">
-      <a href="${WEB_BASE_URL}" style="display:inline-block;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;background:#1f6a47;text-decoration:none;padding:13px 28px;border-radius:6px;letter-spacing:0.01em;">
-        Explorar las últimas actas →
-      </a>
-    </td>
-  </tr>
-
   <!-- FOOTER -->
   <tr>
-    <td style="padding:40px 36px 32px;">
-      <div style="border-top:1px solid #e3e5df;padding-top:22px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="font-family:'Playfair Display',Georgia,serif;font-size:14px;font-weight:700;letter-spacing:-0.02em;color:#1c1f24;">Acta Civium</td>
-            <td align="right" style="font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:11px;color:#8b8e94;">actacivium.netlify.app</td>
-          </tr>
-        </table>
-        <p style="margin:14px 0 0;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.6;color:#8b8e94;">
-          Datos públicos del Ayuntamiento de ${nombreCiudad}, procesados de forma independiente.
-          ·
-          <a href="{{ unsubscribe }}" style="color:#8b8e94;text-decoration:underline;">Darme de baja</a>
-        </p>
-      </div>
+    <td style="background:#f2f3ef;padding:28px 36px 24px;border-top:1px solid #d8dbd4;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="font-family:'Playfair Display',Georgia,serif;font-size:13px;font-weight:700;letter-spacing:-0.02em;color:#1a1d1b;">
+            Acta Civium
+          </td>
+          <td align="right" style="font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:11px;color:#9a9e9a;">
+            actacivium.netlify.app
+          </td>
+        </tr>
+      </table>
+      <p style="margin:12px 0 0;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.6;color:#9a9e9a;">
+        Datos públicos del Ayuntamiento de ${nombreCiudad}, procesados de forma independiente.
+        &nbsp;·&nbsp;
+        <a href="{{ unsubscribe }}" style="color:#9a9e9a;text-decoration:underline;">Darme de baja</a>
+      </p>
     </td>
   </tr>
 
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
 
-</td></tr>
-</table>
 </body>
 </html>`;
 }
