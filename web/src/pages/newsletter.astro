@@ -84,22 +84,23 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
         </p>
       </form>
 
-    </div>
-
-    <!-- State messages (outside card, below it) -->
-    <div id="form-success" class="hidden nl-state-msg nl-state-success">
-      <svg class="nl-state-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/>
-        <path d="m5.5 9 2.5 2.5L12.5 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <div>
-        <div class="nl-state-title">¡Suscripción confirmada!</div>
-        <div class="nl-state-body">
-          Te avisaremos cuando haya nuevo pleno en tu ciudad. Revisa tu bandeja de entrada — te hemos enviado un email de bienvenida.
+      <!-- Success message: inside the card, replacing the form fields -->
+      <div id="form-success" class="hidden nl-state-msg nl-state-success nl-state-incard">
+        <svg class="nl-state-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/>
+          <path d="m5.5 9 2.5 2.5L12.5 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div class="nl-state-title">¡Suscripción confirmada!</div>
+          <div class="nl-state-body">
+            Te avisaremos cuando haya nuevo pleno en tu ciudad. Revisa tu bandeja de entrada — te hemos enviado un email de bienvenida.
+          </div>
         </div>
       </div>
+
     </div>
 
+    <!-- Error message: outside the card, below it -->
     <div id="form-error" class="hidden nl-state-msg nl-state-error">
       <svg class="nl-state-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
         <circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/>
@@ -446,6 +447,7 @@ const ciudadParam = Astro.url.searchParams.get('ciudad') ?? '';
 
   /* ── State messages ─────────────────────────────────────────────────────── */
   .hidden { display: none !important; }
+  .nl-state-incard { max-width: none; margin: 0; }
   .nl-state-msg {
     max-width: 540px;
     margin: 16px auto 0;
