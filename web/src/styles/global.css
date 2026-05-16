@@ -22,6 +22,8 @@
   --color-green-bg:     oklch(96% 0.025 155);
   --color-amber:        oklch(60% 0.13 78);
   --color-amber-bg:     oklch(97% 0.02 78);
+  --color-green-mid:    oklch(50% 0.12 155);
+  --color-red-mid:      oklch(54% 0.15 22);
 
   /* Legacy aliases (por compatibilidad con código existente) */
   --color-breaking: var(--color-red);
@@ -29,6 +31,7 @@
   --radius: 6px;
   --shadow-sm: 0 1px 3px oklch(0% 0 0 / 0.06), 0 1px 2px oklch(0% 0 0 / 0.04);
   --shadow-md: 0 4px 12px oklch(0% 0 0 / 0.08), 0 2px 4px oklch(0% 0 0 / 0.04);
+  --shadow-lg: 0 8px 32px oklch(0% 0 0 / 0.10), 0 4px 8px oklch(0% 0 0 / 0.06);
 }
 
 html {

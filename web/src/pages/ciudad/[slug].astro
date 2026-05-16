@@ -1,13 +1,13 @@
 ---
 export const prerender = false;
 import Base from '../../layouts/Base.astro';
-import CityDashboard from '../../components/CityDashboard.astro';
 import PlenoCard from '../../components/PlenoCard.astro';
 import {
   getMunicipio,
   getCityDashboard,
   getPlenosByMunicipio,
   supabase,
+  CATEGORIAS,
 } from '../../lib/supabase';
 
 const { slug } = Astro.params;
@@ -58,6 +58,8 @@ const primerFecha = plenos.length > 0
   : null;
 
 const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
+
+const { summary, categoryStats } = dashboard;
 ---
 
 <Base
@@ -87,39 +89,140 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
     <a href="/newsletter" class="city-bar-cta">Newsletter →</a>
   </div>
 
-  <CityDashboard municipio={municipio} dashboard={dashboard} />
+  <!-- ── METRICS GRID ──────────────────────────────────────────────────── -->
+  <div class="metrics-grid">
+    <div class="metric-cell">
+      <div class="metric-val">{summary.totalPlenos}</div>
+      <div class="metric-label">Actas analizadas</div>
+    </div>
+    <div class="metric-cell">
+      <div class="metric-val">{summary.totalPuntos}</div>
+      <div class="metric-label">Puntos tratados</div>
+    </div>
+    <div class="metric-cell">
+      <div class="metric-val metric-val--green">{summary.totalAprobados}</div>
+      <div class="metric-label">Aprobados</div>
+    </div>
+    <div class="metric-cell">
+      <div class="metric-val metric-val--red">{summary.totalRechazados}</div>
+      <div class="metric-label">Rechazados</div>
+    </div>
+    <div class="metric-cell">
+      <div class="metric-val">{municipio.n_concejales ?? "—"}</div>
+      <div class="metric-label">Concejales</div>
+    </div>
+    <div class="metric-cell">
+      {municipio.partido_gobierno
+        ? <div class="metric-val metric-val--text">{municipio.partido_gobierno}</div>
+        : <div class="metric-val">—</div>
+      }
+      {municipio.alcalde && <div class="metric-sub">{municipio.alcalde}</div>}
+      <div class="metric-label">Gobierno</div>
+    </div>
+  </div>
 
-  <section style="margin-top: -4px;">
-    <div class="section-rule mb-6">
-      <span class="text-xs font-bold uppercase tracking-widest">
+  <!-- ── PAGE GRID ─────────────────────────────────────────────────────── -->
+  <div class="page-grid">
+
+    <!-- Main: pleno list -->
+    <div>
+      <div class="section-label-row">
         Archivo de actas · {count} {(count ?? 0) === 1 ? "sesión" : "sesiones"}
-      </span>
+      </div>
+
+      {plenos.length === 0 ? (
+        <p style="color: var(--color-ink-muted); font-size: 0.875rem; padding: 32px 0; text-align: center; border: 1px dashed var(--color-border); border-radius: var(--radius);">
+          No hay actas procesadas todavía.
+        </p>
+      ) : (
+        <>
+          <div class="plenos-list">
+            {plenos.map((p, i) => (
+              <PlenoCard
+                pleno={p}
+                featured={i === 0 && page === 1}
+                highlights={highlightsByPleno[p.id]}
+              />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <nav class="pagination">
+              {page > 1
+                ? <a href={`/ciudad/${slug}?page=${page - 1}`}>← Más recientes</a>
+                : <span />}
+              <span class="pagination-info">Página {page} de {totalPages}</span>
+              {page < totalPages
+                ? <a href={`/ciudad/${slug}?page=${page + 1}`}>Anteriores →</a>
+                : <span />}
+            </nav>
+          )}
+        </>
+      )}
     </div>
 
-    {plenos.length === 0 ? (
-      <p class="text-[var(--color-ink-muted)] text-sm py-8 text-center border border-dashed border-[var(--color-border)]">
-        No hay actas procesadas todavía.
-      </p>
-    ) : (
-      <>
-        <div class="plenos-list">
-          {plenos.map((p, i) => <PlenoCard pleno={p} featured={i === 0 && page === 1} highlights={highlightsByPleno[p.id]} />)}
-        </div>
+    <!-- Sidebar -->
+    <aside class="sidebar">
 
-        {totalPages > 1 && (
-          <nav class="flex justify-between items-center mt-8 pt-4 border-t border-[var(--color-border)]">
-            {page > 1
-              ? <a href={`/ciudad/${slug}?page=${page - 1}`} class="text-sm font-semibold hover:underline">← Más recientes</a>
-              : <span />}
-            <span class="text-xs text-[var(--color-ink-muted)]">Página {page} de {totalPages}</span>
-            {page < totalPages
-              ? <a href={`/ciudad/${slug}?page=${page + 1}`} class="text-sm font-semibold hover:underline">Anteriores →</a>
-              : <span />}
-          </nav>
+      <!-- Ficha del municipio -->
+      <div class="sidebar-card">
+        <div class="sidebar-section-label">Ficha del municipio</div>
+
+        {municipio.alcalde && (
+          <div class="ficha-row">
+            <div class="ficha-dt">Alcalde/sa</div>
+            <div class="ficha-dd">{municipio.alcalde}</div>
+          </div>
         )}
-      </>
-    )}
-  </section>
+
+        {municipio.partido_gobierno && (
+          <div class="ficha-row">
+            <div class="ficha-dt">Partido de gobierno</div>
+            <div class="ficha-dd">
+              {municipio.color_gobierno && (
+                <span class="partido-dot" style={`background: ${municipio.color_gobierno}`} />
+              )}
+              {municipio.partido_gobierno}
+            </div>
+          </div>
+        )}
+
+        {municipio.n_concejales && (
+          <div class="ficha-row">
+            <div class="ficha-dt">Concejales</div>
+            <div class="ficha-dd">{municipio.n_concejales}</div>
+          </div>
+        )}
+
+        {municipio.poblacion && (
+          <div class="ficha-row">
+            <div class="ficha-dt">Población</div>
+            <div class="ficha-dd">{municipio.poblacion.toLocaleString("es-ES")} hab.</div>
+          </div>
+        )}
+
+        {municipio.web_oficial && (
+          <a href={municipio.web_oficial} target="_blank" rel="noopener" class="ficha-link">
+            Web oficial del Ayuntamiento →
+          </a>
+        )}
+      </div>
+
+      <!-- Temas más tratados -->
+      {categoryStats.length > 0 && (
+        <div class="sidebar-card">
+          <div class="sidebar-section-label">Temas más tratados</div>
+          {categoryStats.map(({ categoria, label, total }) => (
+            <div class="topic-row">
+              <span class:list={["badge", `badge-${categoria}`]}>{label}</span>
+              <span class="topic-count">{total} puntos</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+    </aside>
+  </div>
 
 </Base>
 
@@ -129,7 +232,6 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0;
     height: 52px;
     padding: 0 18px 0 22px;
     background: var(--color-bg-card);
@@ -140,16 +242,13 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
   }
   .city-bar-accent {
     position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
+    left: 0; top: 0; bottom: 0;
     width: 3px;
     border-radius: 3px 0 0 3px;
   }
   .city-bar-name {
     display: flex;
     align-items: baseline;
-    gap: 0;
     flex-shrink: 0;
     padding-right: 16px;
   }
@@ -195,20 +294,201 @@ const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
   }
   .city-bar-cta:hover { color: var(--color-accent); }
 
+  /* ── Metrics grid ───────────────────────────────────────────────────── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) + 2px);
+    overflow: hidden;
+    margin-bottom: 40px;
+    background: var(--color-bg-card);
+  }
+  .metric-cell {
+    padding: 20px 12px;
+    text-align: center;
+    border-right: 1px solid var(--color-border);
+  }
+  .metric-cell:last-child { border-right: none; }
+  .metric-val {
+    font-family: var(--font-serif);
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--color-ink);
+  }
+  .metric-val--green { color: var(--color-green); }
+  .metric-val--red   { color: var(--color-red); }
+  .metric-val--text  {
+    font-size: 0.9375rem;
+    line-height: 1.25;
+    font-family: var(--font-sans);
+    font-weight: 600;
+  }
+  .metric-sub {
+    font-size: 0.6875rem;
+    color: var(--color-ink-subtle);
+    margin-top: 2px;
+  }
+  .metric-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+    margin-top: 6px;
+  }
+
+  /* ── Page grid ──────────────────────────────────────────────────────── */
+  .page-grid {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 48px;
+    align-items: start;
+  }
+
+  /* ── Section label ──────────────────────────────────────────────────── */
+  .section-label-row {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label-row::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+    max-width: 80px;
+  }
+
   /* ── Pleno list ─────────────────────────────────────────────────────── */
   .plenos-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 14px;
+  }
+
+  /* ── Pagination ─────────────────────────────────────────────────────── */
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+  }
+  .pagination a {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+  .pagination a:hover { text-decoration: underline; }
+  .pagination-info { font-size: 0.75rem; color: var(--color-ink-subtle); }
+
+  /* ── Sidebar ────────────────────────────────────────────────────────── */
+  .sidebar { display: flex; flex-direction: column; gap: 28px; }
+
+  .sidebar-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) + 2px);
+    padding: 18px 18px 16px;
+  }
+  .sidebar-section-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .ficha-row { margin-bottom: 12px; }
+  .ficha-row:last-of-type { margin-bottom: 0; }
+  .ficha-dt {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+    margin-bottom: 2px;
+  }
+  .ficha-dd {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-ink);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .partido-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .ficha-link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    display: inline-block;
+    margin-top: 14px;
+    text-decoration: none;
+  }
+  .ficha-link:hover { text-decoration: underline; }
+
+  .topic-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+    cursor: default;
+  }
+  .topic-row:last-child { border-bottom: none; }
+  .topic-count {
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
   }
 
   /* ── Responsive ─────────────────────────────────────────────────────── */
   @media (max-width: 1024px) {
+    .metrics-grid { grid-template-columns: repeat(3, 1fr); }
+    .metric-cell:nth-child(3) { border-right: none; }
+    .metric-cell:nth-child(4),
+    .metric-cell:nth-child(5),
+    .metric-cell:nth-child(6) { border-top: 1px solid var(--color-border); }
+    .page-grid { grid-template-columns: 1fr 220px; gap: 32px; }
   }
+
   @media (max-width: 768px) {
     .city-bar { height: auto; padding: 12px 16px 12px 20px; }
     .city-bar-meta { display: none; }
     .city-bar-cta  { display: none; }
     .city-bar-sep  { display: none; }
+
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    .metric-cell:nth-child(2n) { border-right: none; }
+    .metric-cell:nth-child(3) { border-right: 1px solid var(--color-border); }
+    .metric-cell { border-bottom: 1px solid var(--color-border); }
+    .metric-cell:nth-child(5),
+    .metric-cell:nth-child(6) { border-bottom: none; }
+
+    .page-grid { grid-template-columns: 1fr; gap: 40px; }
+    .sidebar { order: -1; }
+  }
+
+  @media (max-width: 480px) {
+    .metric-val { font-size: 1.5rem; }
   }
 </style>

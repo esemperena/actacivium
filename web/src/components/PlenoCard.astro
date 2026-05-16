@@ -1,4 +1,10 @@
 ---
+interface Highlight {
+  titulo: string;
+  categoria: string;
+  resultado: string;
+}
+
 interface Props {
   pleno: {
     id: string;
@@ -14,9 +20,10 @@ interface Props {
     n_asistentes?: number | null;
   };
   featured?: boolean;
+  highlights?: Highlight[];
 }
 
-const { pleno, featured = false } = Astro.props;
+const { pleno, featured = false, highlights = [] } = Astro.props;
 
 const fecha = new Date(pleno.fecha + "T12:00:00");
 const fechaLarga = fecha.toLocaleDateString("es-ES", {
@@ -24,86 +31,216 @@ const fechaLarga = fecha.toLocaleDateString("es-ES", {
 });
 const diaSemana = fecha.toLocaleDateString("es-ES", { weekday: "long" });
 const esExtraordinaria = pleno.tipo_sesion === "extraordinaria";
+const pctAprobado = pleno.total_puntos > 0
+  ? Math.round((pleno.aprobados / pleno.total_puntos) * 100)
+  : 0;
+
+const RESULTADO_DOT: Record<string, string> = {
+  aprobado:     "var(--color-green)",
+  rechazado:    "var(--color-red)",
+  enterado:     "var(--color-ink-subtle)",
+  sin_votacion: "var(--color-ink-subtle)",
+};
 ---
 
-<article style={`border-bottom: 1px solid var(--color-border); padding: ${featured ? "28px 0" : "20px 0"};`}>
+<article class:list={["pleno-card", { "pleno-card--featured": featured }]}>
+  <div class="pleno-card-content">
+    <div class="pleno-card-top">
+      <span class="pleno-num">Pleno nº {pleno.numero_acta}</span>
+      {esExtraordinaria && (
+        <span class="badge" style="background: var(--color-amber-bg); color: var(--color-amber);">Extraordinaria</span>
+      )}
+    </div>
 
-  <!-- Etiquetas superiores -->
-  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px;">
-    <span style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-ink-subtle);">
-      Pleno nº {pleno.numero_acta}
-    </span>
-    {esExtraordinaria && (
-      <span class="badge" style="background: var(--color-amber-bg); color: var(--color-amber);">Extraordinaria</span>
-    )}
-  </div>
-
-  <!-- Título / fecha -->
-  <a href={`/acta/${pleno.id}`} style="display: block; text-decoration: none;">
-    <time
-      datetime={pleno.fecha}
-      style={`
-        font-family: var(--font-serif);
-        font-weight: 700;
-        font-size: ${featured ? "clamp(1.25rem, 2.5vw, 1.875rem)" : "clamp(1rem, 1.8vw, 1.35rem)"};
-        line-height: 1.2;
-        letter-spacing: -0.02em;
-        text-transform: capitalize;
-        color: var(--color-ink);
-        display: block;
-        margin-bottom: 6px;
-        transition: color 0.15s;
-      `}
-      class="pleno-fecha-link"
-    >
+    <a href={`/acta/${pleno.id}`} class="pleno-date-link">
       {diaSemana}, {fechaLarga}
-    </time>
+    </a>
 
     {pleno.resumen_ia && (
-      <p style={`
-        color: var(--color-ink-muted);
-        line-height: 1.65;
-        font-size: ${featured ? "0.9375rem" : "0.875rem"};
-        margin-top: 4px;
-      `}>
-        {pleno.resumen_ia.length > 200
-          ? pleno.resumen_ia.slice(0, 200) + "…"
-          : pleno.resumen_ia}
+      <p class="pleno-summary">
+        {pleno.resumen_ia.length > 180 ? pleno.resumen_ia.slice(0, 180) + "…" : pleno.resumen_ia}
       </p>
     )}
-  </a>
 
-  <!-- Stats -->
-  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 10px; font-size: 0.8125rem; color: var(--color-ink-subtle);">
-    <span style="font-weight: 600; color: var(--color-ink);">
-      {pleno.total_puntos} {pleno.total_puntos === 1 ? "punto" : "puntos"}
-    </span>
-    {pleno.aprobados > 0 && (
-      <span class="resultado-aprobado">{pleno.aprobados} aprobados</span>
+    {!pleno.resumen_ia && highlights.length > 0 && (
+      <ul class="pleno-highlights">
+        {highlights.slice(0, 2).map((h) => (
+          <li class="pleno-highlight-item">
+            <span
+              class="result-dot"
+              style={`background: ${RESULTADO_DOT[h.resultado] ?? "var(--color-ink-subtle)"}`}
+            />
+            <span>{h.titulo.length > 90 ? h.titulo.slice(0, 90) + "…" : h.titulo}</span>
+          </li>
+        ))}
+      </ul>
     )}
-    {pleno.rechazados > 0 && (
-      <span class="resultado-rechazado">{pleno.rechazados} rechazados</span>
-    )}
-    {pleno.unanimes > 0 && (
-      <span>{pleno.unanimes} por unanimidad</span>
-    )}
-    {pleno.n_asistentes && (
-      <span>{pleno.n_asistentes} concejales</span>
-    )}
-    <a
-      href={`/acta/${pleno.id}`}
-      style="margin-left: auto; font-size: 0.8125rem; font-weight: 600; color: var(--color-accent); text-decoration: none;"
-    >
-      Ver acta →
-    </a>
+
+    <div class="pleno-stats">
+      <span class="pleno-stats-total">{pleno.total_puntos} puntos</span>
+      {pleno.aprobados > 0 && <span class="stat-approved">{pleno.aprobados} aprobados</span>}
+      {pleno.rechazados > 0 && <span class="stat-rejected">{pleno.rechazados} rechazados</span>}
+      {pleno.unanimes > 0 && <span>{pleno.unanimes} unanimidad</span>}
+      {pleno.n_asistentes && <span>{pleno.n_asistentes} concejales</span>}
+    </div>
+  </div>
+
+  <div class="pleno-card-sidebar">
+    <div class="pleno-card-sidebar-val">{pctAprobado}%</div>
+    <div class="pleno-card-sidebar-label">Aprobado</div>
   </div>
 </article>
 
 <style>
-  .pleno-fecha-link:hover {
-    color: var(--color-accent) !important;
+  .pleno-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) + 2px);
+    overflow: hidden;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    display: grid;
+    grid-template-columns: 1fr auto;
   }
-  article:hover .pleno-fecha-link {
+  .pleno-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-accent);
+  }
+  .pleno-card--featured {
+    border-color: oklch(85% 0.02 158);
+    background: oklch(99.5% 0.004 158);
+  }
+  .pleno-card--featured:hover {
+    border-color: var(--color-accent);
+  }
+
+  .pleno-card-content {
+    padding: 18px 20px;
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pleno-card-sidebar {
+    padding: 18px 20px;
+    background: var(--color-accent-xlight);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-width: 108px;
+    text-align: center;
+  }
+  .pleno-card--featured .pleno-card-sidebar {
+    background: linear-gradient(135deg, var(--color-accent-xlight) 0%, oklch(99% 0.004 158) 100%);
+  }
+  .pleno-card-sidebar-val {
+    font-size: 1.5rem;
+    font-weight: 700;
     color: var(--color-accent);
+    line-height: 1;
+  }
+  .pleno-card-sidebar-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+    margin-top: 4px;
+  }
+
+  .pleno-card-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .pleno-num {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-subtle);
+  }
+
+  .pleno-date-link {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+    display: block;
+    margin-bottom: 8px;
+    text-transform: capitalize;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .pleno-date-link:hover { color: var(--color-accent); }
+
+  .pleno-summary {
+    font-size: 0.85rem;
+    color: var(--color-ink-muted);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    flex-grow: 1;
+  }
+
+  .pleno-highlights {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 10px;
+    flex-grow: 1;
+  }
+  .pleno-highlight-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--color-ink);
+  }
+  .result-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+
+  .pleno-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+  }
+  .pleno-stats-total { font-weight: 600; color: var(--color-ink); }
+  .stat-approved { color: var(--color-green); font-weight: 600; }
+  .stat-rejected { color: var(--color-red); font-weight: 600; }
+
+  @media (max-width: 768px) {
+    .pleno-card {
+      grid-template-columns: 1fr;
+    }
+    .pleno-card-content {
+      border-right: none;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .pleno-card-sidebar {
+      flex-direction: row;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      min-width: auto;
+    }
+    .pleno-card-sidebar-val { font-size: 1.25rem; }
+    .pleno-stats { gap: 10px; }
   }
 </style>
