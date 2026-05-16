@@ -54,6 +54,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Solo listar, no procesar")
     parser.add_argument("--reprocess", type=int, metavar="N", help="Reprocesar acta nº N")
     parser.add_argument("--year", type=int, metavar="YYYY", help="Año a scrapear (defecto: año actual)")
+    parser.add_argument("--limit", type=int, metavar="N", help="Procesar como máximo N actas nuevas")
     parser.add_argument("--no-newsletter", action="store_true", help="No enviar newsletter tras procesar")
     args = parser.parse_args()
 
@@ -91,6 +92,9 @@ def main():
         print("✓ No hay actas nuevas. Todo al día.\n")
         _registrar_log(municipio_id, 0, 0, inicio)
         return
+
+    if args.limit:
+        actas_a_procesar = actas_a_procesar[:args.limit]
 
     print(f"→ {len(actas_a_procesar)} actas nuevas a procesar:\n")
 
