@@ -472,9 +472,9 @@ def _acumular_votos(texto: str, posicion: str, partidos: dict):
     """
     seen: set[str] = set()
 
-    # Formato con paréntesis: (N) PARTIDO
+    # Formato con paréntesis: (N) PARTIDO — separadores , o ;
     for m in re.finditer(
-            r"\((\d+)\)\s+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ/\-\. ]*?)(?=\s*,\s*\(|\s*[·.]|\s*$|\Z)",
+            r"\((\d+)\)\s+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ/\-\. ]*?)(?=\s*[,;]\s*\(|\s*[·.]|\s*$|\Z)",
             texto):
         votos = int(m.group(1))
         siglas = _normalizar_siglas(m.group(2).strip())
