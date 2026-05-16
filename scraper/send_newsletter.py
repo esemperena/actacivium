@@ -143,11 +143,13 @@ def _html_header(numero: int, ciudad: str) -> str:
     </tr>"""
 
 
-def _html_masthead(tipo: str, fecha_fmt: str, titular: str) -> str:
+def _html_masthead(tipo: str, fecha_fmt: str) -> str:
     return f"""
     <tr>
       <td style="padding:44px 36px 12px;">
-        <h1 style="margin:0 0 16px;font-family:{FONT_SERIF};font-size:30px;font-weight:700;line-height:1.1;letter-spacing:-0.025em;color:{COLOR_INK};">{titular}</h1>
+        <p style="margin:0 0 18px;font-family:{FONT_SANS};font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:{COLOR_ACCENT};">
+          <span style="display:inline-block;width:5px;height:5px;background:{COLOR_ACCENT};border-radius:50%;vertical-align:middle;margin-right:8px;opacity:.6;"></span>Pleno {tipo} · {fecha_fmt}
+        </p>
       </td>
     </tr>"""
 
@@ -440,7 +442,7 @@ def generar_html(datos: dict, ciudad: str = "San Sebastián") -> str:
 <![endif]-->
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="max-width:620px;margin:0 auto;background:{COLOR_CARD};border:1px solid {COLOR_BORDER};border-radius:8px;">
   {_html_header(numero, ciudad)}
-  {_html_masthead(tipo, fecha_fmt, titular)}
+  {_html_masthead(tipo, fecha_fmt)}
   {_html_stats(n_puntos, aprobados, rechazados)}
   {_html_composicion(composicion)}
   {_html_asistencia(pleno)}
