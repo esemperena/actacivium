@@ -117,14 +117,32 @@ def _badge_resultado(resultado: str) -> str:
 
 
 def _formatear_resumen(resumen: str) -> str:
-    """Limpia el resumen en un párrafo único, legible."""
+    """Divide el resumen en 2-4 párrafos y los formatea como HTML."""
     if not resumen:
         return ""
-    texto = " ".join(resumen.replace("\r", "").split())
-    return (
-        f'<p style="margin:0;font-family:{FONT_SANS};font-size:14.5px;'
-        f'line-height:1.7;color:#3a3e44;">{texto}</p>'
+    estilo_mid = (
+        f'font-family:{FONT_SANS};font-size:14.5px;line-height:1.7;'
+        f'color:#3a3e44;margin:0 0 10px;'
     )
+    estilo_last = estilo_mid.replace('margin:0 0 10px;', 'margin:0;')
+
+    if "\n" in resumen:
+        parrafos = [p.strip() for p in resumen.replace("\r", "").split("\n") if p.strip()]
+    else:
+        import re
+        oraciones = re.split(r'(?<=[.!?])\s+', resumen.strip())
+        tam = max(2, -(-len(oraciones) // 3))  # ceil(n/3) → 2-4 párrafos
+        parrafos = [
+            " ".join(oraciones[i:i + tam])
+            for i in range(0, len(oraciones), tam)
+            if oraciones[i:i + tam]
+        ]
+
+    if not parrafos:
+        return ""
+    bloques = [f'<p style="{estilo_mid}">{p}</p>' for p in parrafos[:-1]]
+    bloques.append(f'<p style="{estilo_last}">{parrafos[-1]}</p>')
+    return "".join(bloques)
 
 
 # ── Bloques de plantilla ─────────────────────────────────────────────────────

@@ -47,6 +47,25 @@ def get_datos_pleno(pleno_id: str) -> dict:
     return {"pleno": pleno, "puntos": puntos}
 
 
+def _html_resumen_parrafos(resumen: str) -> str:
+    """Divide el resumen en 2-4 párrafos HTML con estilo inline."""
+    if not resumen:
+        return ""
+    import re
+    estilo = 'margin:12px 0 0;font-size:14px;color:#555;line-height:1.6;border-left:3px solid #1a3a2a;padding-left:12px;'
+    if "\n" in resumen:
+        parrafos = [p.strip() for p in resumen.replace("\r", "").split("\n") if p.strip()]
+    else:
+        oraciones = re.split(r'(?<=[.!?])\s+', resumen.strip())
+        tam = max(2, -(-len(oraciones) // 3))
+        parrafos = [
+            " ".join(oraciones[i:i + tam])
+            for i in range(0, len(oraciones), tam)
+            if oraciones[i:i + tam]
+        ]
+    return "".join(f'<p style="{estilo}">{p}</p>' for p in parrafos)
+
+
 def generar_html_newsletter(datos: dict, url_base: str = "https://actacivium.vercel.app") -> str:
     pleno = datos["pleno"]
     puntos = datos["puntos"]
@@ -113,7 +132,7 @@ def generar_html_newsletter(datos: dict, url_base: str = "https://actacivium.ver
           <td style="padding:28px 32px 20px;border-bottom:3px solid #111;">
             <p style="margin:0 0 6px;font-size:11px;color:#777;text-transform:uppercase;letter-spacing:0.1em;">Nuevo pleno</p>
             <h1 style="margin:0;font-family:Georgia,serif;font-size:26px;font-weight:700;color:#111;line-height:1.15;">{fecha_fmt}</h1>
-            {f'<p style="margin:12px 0 0;font-size:14px;color:#555;line-height:1.6;border-left:3px solid #1a3a2a;padding-left:12px;">{pleno.get("resumen_ia", "")}</p>' if pleno.get("resumen_ia") else ""}
+            {_html_resumen_parrafos(pleno.get("resumen_ia", ""))}
           </td>
         </tr>
 
