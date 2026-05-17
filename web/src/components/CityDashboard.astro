@@ -6,9 +6,10 @@ import type { CityDashboardData, Municipio } from '../lib/supabase';
 interface Props {
   municipio: Municipio;
   dashboard: CityDashboardData;
+  introText?: string;
 }
 
-const { municipio, dashboard } = Astro.props;
+const { municipio, dashboard, introText } = Astro.props;
 
 const totalConcejales =
   dashboard.composicion.reduce((sum, item) => sum + item.concejales, 0) ||
@@ -126,7 +127,7 @@ const heatColor = (share: number) => {
       <p class="dashboard-kicker">Radar municipal</p>
       <h2 class="dashboard-title">Actividad del pleno de {municipio.nombre_alt ?? municipio.nombre} · Sesiones y votaciones</h2>
       <p class="dashboard-subtitle">
-        Lectura rapida de actividad, temas dominantes, grado de consenso y bloques de voto.
+        {introText ?? "Lectura rapida de actividad, temas dominantes, grado de consenso y bloques de voto."}
       </p>
     </div>
 

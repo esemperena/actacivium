@@ -65,6 +65,15 @@ const { summary, categoryStats } = dashboard;
 const ciudadTitle = municipio.nombre_alt && municipio.nombre_alt !== municipio.nombre
   ? `${municipio.nombre_alt}-${municipio.nombre}`
   : municipio.nombre;
+
+const introText = [
+  `El Ayuntamiento de ${ciudadTitle}${municipio.provincia ? `, ${municipio.provincia},` : ""}`,
+  municipio.n_concejales ? `cuenta con ${municipio.n_concejales} concejales` : null,
+  municipio.partido_gobierno && municipio.alcalde
+    ? `y su gobierno lo encabeza ${municipio.alcalde} (${municipio.partido_gobierno}).`
+    : null,
+  `Acta Civium analiza las actas del pleno municipal para mostrar qué se aprueba, quién vota qué y qué temas dominan el debate político local.`,
+].filter(Boolean).join(" ");
 ---
 
 <Base
@@ -126,18 +135,8 @@ const ciudadTitle = municipio.nombre_alt && municipio.nombre_alt !== municipio.n
     </div>
   </div>
 
-  <!-- ── SEO INTRO ───────────────────────────────────────────────────── -->
-  <p class="city-intro">
-    El Ayuntamiento de {ciudadTitle}{municipio.provincia ? `, ${municipio.provincia}` : ""}
-    {municipio.n_concejales ? ` cuenta con ${municipio.n_concejales} concejales` : ""}
-    {municipio.partido_gobierno && municipio.alcalde
-      ? ` y su gobierno lo encabeza ${municipio.alcalde} (${municipio.partido_gobierno}).`
-      : "."}
-    {" "}Acta Civium analiza las actas del pleno municipal para mostrar qué se aprueba, quién vota qué y qué temas dominan el debate político local.
-  </p>
-
   <!-- ── DASHBOARD (Composición, Agenda, Coincidencia) ────────────────── -->
-  <CityDashboard municipio={municipio} dashboard={dashboard} />
+  <CityDashboard municipio={municipio} dashboard={dashboard} introText={introText} />
 
   <!-- ── PAGE GRID ─────────────────────────────────────────────────────── -->
   <div class="page-grid">
@@ -245,15 +244,6 @@ const ciudadTitle = municipio.nombre_alt && municipio.nombre_alt !== municipio.n
 </Base>
 
 <style>
-  /* ── SEO intro ─────────────────────────────────────────────────────── */
-  .city-intro {
-    font-size: 0.875rem;
-    line-height: 1.65;
-    color: var(--color-ink-muted);
-    max-width: 72ch;
-    margin-bottom: 32px;
-  }
-
   /* ── City context bar ───────────────────────────────────────────────── */
   .city-bar {
     position: relative;
