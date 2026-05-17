@@ -262,6 +262,11 @@ const puntosOrdenDelDia  = [...puntosUrgentes, ...puntosResolutivos];
                   {tieneVotos && (
                     <VotacionToggle client:load votos={votosProps} />
                   )}
+                  {!tieneVotos && (p.resultado === "aprobado" || p.resultado === "rechazado") && (
+                    <p class="sin-desglose">
+                      {p.unanimidad ? "Sin desglose — unanimidad registrada en acta" : "Sin desglose de votación en acta"}
+                    </p>
+                  )}
                 </div>
               </article>
             );
@@ -304,6 +309,11 @@ const puntosOrdenDelDia  = [...puntosUrgentes, ...puntosResolutivos];
                   </div>
                   {tieneVotos && (
                     <VotacionToggle client:load votos={votosProps} />
+                  )}
+                  {!tieneVotos && (p.resultado === "aprobado" || p.resultado === "rechazado") && (
+                    <p class="sin-desglose">
+                      {p.unanimidad ? "Sin desglose — unanimidad registrada en acta" : "Sin desglose de votación en acta"}
+                    </p>
                   )}
                 </div>
               </article>
@@ -551,6 +561,12 @@ const puntosOrdenDelDia  = [...puntosUrgentes, ...puntosResolutivos];
   .badge-amber-urgencia {
     background: var(--color-amber-bg);
     color: var(--color-amber);
+  }
+  .sin-desglose {
+    font-size: 0.75rem;
+    color: var(--color-ink-subtle);
+    margin-top: 6px;
+    font-style: italic;
   }
   .votacion-dividida-tag {
     font-size: 0.6875rem; font-weight: 500;
