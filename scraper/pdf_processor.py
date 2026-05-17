@@ -436,7 +436,7 @@ def _parsear_bloque_votacion(bloque: str) -> dict | None:
     if total_abst > 0:
         # Intentar extraer desglose: "3 – (3) PP" o "3 – EH BILDU"
         m_abst_detail = re.search(
-            r"ABSTENCIONES:\s*\d+\s*[-–]\s*(.+?)(?:\.|$)", texto, re.I)
+            r"ABSTENCIONES:\s*\d+\s*[-–]\s*(.+?)(?:POR HABERSE AUSENTADO|BATZARRETIK IRTEN|\.|$)", texto, re.I)
         if m_abst_detail:
             abst_text = m_abst_detail.group(1)
             if re.search(r"\(\d+\)", abst_text):
@@ -452,6 +452,24 @@ def _parsear_bloque_votacion(bloque: str) -> dict | None:
                         n = total_abst if len(simple_parties) == 1 else 1
                         _set_votos(partidos, siglas, "abstenciones", n)
 
+    # POR HABERSE AUSENTADO DE LA SALA (concejal presente en pleno pero ausente en la votación)
+    m_aus = re.search(r"(?:POR HABERSE AUSENTADO DE LA SALA|BATZARRETIK IRTEN):\s*(\d+)", texto, re.I)
+    total_aus = int(m_aus.group(1)) if m_aus else 0
+    if total_aus > 0:
+        m_aus_detail = re.search(
+            r"(?:POR HABERSE AUSENTADO DE LA SALA|BATZARRETIK IRTEN):\s*\d+\s*[-–]\s*(.+?)(?:\.|$)", texto, re.I)
+        if m_aus_detail:
+            aus_text = m_aus_detail.group(1)
+            if re.search(r"\(\d+\)", aus_text):
+                _acumular_votos(aus_text, "ausentes", partidos)
+            else:
+                simple_parties = [p.strip() for p in re.split(r",\s*", aus_text) if p.strip()]
+                for party_raw in simple_parties:
+                    siglas = _normalizar_siglas(party_raw)
+                    if siglas:
+                        n = total_aus if len(simple_parties) == 1 else 1
+                        _set_votos(partidos, siglas, "ausentes", n)
+
     if not partidos and resultado == "sin_votacion":
         return None
 
@@ -460,6 +478,7 @@ def _parsear_bloque_votacion(bloque: str) -> dict | None:
         "unanimidad": unanimidad,
         "partidos": partidos,
         "total_abstenciones": total_abst,
+        "total_ausentes": total_aus,
     }
 
 
@@ -522,8 +541,8 @@ def _normalizar_siglas(s: str) -> str:
 
 def _set_votos(partidos: dict, siglas: str, posicion: str, votos: int):
     if siglas not in partidos:
-        partidos[siglas] = {"votos_favor": 0, "votos_contra": 0, "abstenciones": 0}
-    campo = {"favor": "votos_favor", "contra": "votos_contra", "abstenciones": "abstenciones"}[posicion]
+        partidos[siglas] = {"votos_favor": 0, "votos_contra": 0, "abstenciones": 0, "ausentes": 0}
+    campo = {"favor": "votos_favor", "contra": "votos_contra", "abstenciones": "abstenciones", "ausentes": "ausentes"}[posicion]
     partidos[siglas][campo] += votos
 
 
@@ -734,6 +753,24 @@ Texto del acta: {texto}
 Escribe solo el resumen, sin introducción ni explicaciones."""
 
 
+SYSTEM_TITULO_PUNTO = (
+    "Eres un redactor de Acta Civium, publicación ciudadana sobre plenos municipales. "
+    "Tu ÚNICA tarea es reescribir el título de un punto del orden del día para que sea "
+    "una frase completa, clara y comprensible en castellano. "
+    "REGLAS ESTRICTAS: máximo 85 caracteres, nunca uses puntos suspensivos, "
+    "la frase debe tener sentido completo por sí sola aunque sea más corta que el original. "
+    "NUNCA hagas preguntas. Escribe DIRECTAMENTE el título, sin comillas ni explicaciones."
+)
+
+PROMPT_TITULO_PUNTO = """Reescribe este título de un punto del orden del día para que sea una frase clara y completa:
+
+Título original: {titulo}
+Resultado de la votación: {resultado}
+Fragmento del acta: {texto}
+
+Escribe solo el título reescrito en castellano. Máximo 85 caracteres. Frase completa y comprensible."""
+
+
 SYSTEM_RESUMEN_PLENO = (
     "Eres un redactor de Acta Civium, publicación ciudadana sobre plenos municipales. "
     "NUNCA hagas preguntas. NUNCA pidas más información. Escribe DIRECTAMENTE el resumen "
@@ -759,6 +796,42 @@ def generar_resumen_punto(titulo: str, resultado: str, texto: str) -> str | None
         titulo=titulo, resultado=resultado, texto=texto_recortado
     )
     return _llamar_claude(prompt, system_prompt=SYSTEM_RESUMEN_PUNTO)
+
+
+def _titulo_necesita_reescritura(titulo: str) -> bool:
+    """Devuelve True si el título probablemente no se entiende bien."""
+    if not titulo:
+        return True
+    # Demasiado largo para mostrarse sin cortar
+    if len(titulo) > 85:
+        return True
+    # Termina en preposición, artículo o conjunción (frase incompleta)
+    if re.search(r"\b(el|la|los|las|de|del|por|en|con|a|al|un|una|para|sobre|que|y|o)\s*$", titulo, re.I):
+        return True
+    # Empieza con minúscula (probable artefacto de extracción)
+    if titulo and titulo[0].islower():
+        return True
+    # Muy corto y sin verbo aparente (menos de 4 palabras)
+    if len(titulo.split()) < 4:
+        return True
+    return False
+
+
+def generar_titulo_punto(titulo: str, resultado: str, texto: str) -> str | None:
+    """Reescribe el título de un punto para que sea claro, completo y ≤85 caracteres."""
+    texto_recortado = _recortar_texto(texto, max_chars=3_000)
+    prompt = PROMPT_TITULO_PUNTO.format(
+        titulo=titulo, resultado=resultado, texto=texto_recortado
+    )
+    resultado_ia = _llamar_claude(prompt, system_prompt=SYSTEM_TITULO_PUNTO)
+    if resultado_ia:
+        # Quitar comillas si Claude las añade y truncar como último recurso
+        titulo_limpio = resultado_ia.strip().strip('"').strip("'")
+        if len(titulo_limpio) > 90:
+            # Cortar por última palabra completa antes del límite
+            titulo_limpio = titulo_limpio[:87].rsplit(" ", 1)[0] + "…"
+        return titulo_limpio
+    return None
 
 
 def _llamar_claude(prompt: str, system_prompt: str | None = None,

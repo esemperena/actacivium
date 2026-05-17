@@ -6,11 +6,15 @@ Uso:
   python backfill_resumenes.py --pleno 39       # solo puntos del acta 39
   python backfill_resumenes.py --overwrite      # regenera también los resumenes malos
   python backfill_resumenes.py --fix-titles     # actualiza títulos truncados desde el cuerpo
+  python backfill_resumenes.py --fix-titles-ia  # reescribe con IA títulos confusos o largos
 """
 import argparse
 import time
 from db import get_client
-from pdf_processor import generar_resumen_punto, PROMPT_RESUMEN_PLENO
+from pdf_processor import (
+    generar_resumen_punto, generar_titulo_punto,
+    _titulo_necesita_reescritura, PROMPT_RESUMEN_PLENO,
+)
 import re, json, subprocess
 from config import CLAUDE_CMD
 
@@ -30,6 +34,10 @@ def main():
                         help="Regenerar también resumenes que contienen respuestas incorrectas de Claude")
     parser.add_argument("--fix-titles", action="store_true",
                         help="Actualizar títulos truncados extrayéndolos del cuerpo del acta")
+    parser.add_argument("--fix-titles-ia", action="store_true",
+                        help="Reescribir con IA títulos confusos, incompletos o demasiado largos")
+    parser.add_argument("--all-titles-ia", action="store_true",
+                        help="Reescribir TODOS los títulos con IA, no solo los problemáticos")
     args = parser.parse_args()
 
     client = get_client()
@@ -55,6 +63,31 @@ def main():
             .data
         )
 
+        # ── Modo fix-titles-ia ────────────────────────────────────────────
+        if args.fix_titles_ia or args.all_titles_ia:
+            candidatos = [
+                p for p in puntos
+                if args.all_titles_ia or _titulo_necesita_reescritura(p.get("titulo") or "")
+            ]
+            if not candidatos:
+                print(f"  Acta {num}: ningún título requiere reescritura.")
+            else:
+                print(f"  Acta {num}: reescribiendo {len(candidatos)} títulos con IA…")
+                for p in candidatos:
+                    extracto = _extraer_fragmento(texto_pleno, p["numero"])
+                    titulo_orig = p["titulo"] or ""
+                    resultado = p["resultado"] or "sin_votacion"
+                    texto_ctx = extracto if extracto else titulo_orig
+                    nuevo_titulo = generar_titulo_punto(titulo_orig, resultado, texto_ctx)
+                    if nuevo_titulo and nuevo_titulo != titulo_orig:
+                        client.table("puntos").update({"titulo": nuevo_titulo}).eq("id", p["id"]).execute()
+                        print(f"    [{p['numero']}] {titulo_orig!r} → {nuevo_titulo!r}")
+                    else:
+                        print(f"    [{p['numero']}] Sin cambio.")
+                    time.sleep(1)
+            continue
+
+        # ── Modo normal: generar resumen_ia ───────────────────────────────
         pendientes = []
         for p in puntos:
             resumen = p.get("resumen_ia") or ""

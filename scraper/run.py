@@ -34,6 +34,8 @@ from pdf_processor import (
     calcular_relevancia_social,
     generar_resumen_pleno,
     generar_resumen_punto,
+    generar_titulo_punto,
+    _titulo_necesita_reescritura,
 )
 import db
 
@@ -223,6 +225,12 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
         extracto = _extraer_fragmento(texto_completo, num) if texto_completo else titulo
         texto_para_resumen = extracto if extracto else titulo
         resumen_ia = generar_resumen_punto(titulo, resultado, texto_para_resumen)
+
+        # Reescritura del título si es largo, oscuro o incompleto
+        if _titulo_necesita_reescritura(titulo):
+            titulo_reescrito = generar_titulo_punto(titulo, resultado, texto_para_resumen)
+            if titulo_reescrito:
+                titulo = titulo_reescrito
         grupo_proponente_raw = (
             extraer_grupo_proponente_raw(titulo, extracto)
             if tipo in TIPOS_CON_PROPONENTE else None
@@ -252,6 +260,7 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
             "resultado": resultado,
             "unanimidad": unanimidad,
             "grupo_proponente_id": grupo_proponente_id,
+            "texto_completo": extracto or None,
             "resumen_ia": resumen_ia[:600] if resumen_ia else None,
             "relevancia_social": relevancia_social,
             "es_urgencia": p.get("es_urgencia", False),
@@ -270,6 +279,7 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
                     "votos_favor": votos.get("votos_favor", 0),
                     "votos_contra": votos.get("votos_contra", 0),
                     "abstenciones": votos.get("abstenciones", 0),
+                    "ausentes": votos.get("ausentes", 0),
                 })
             except Exception:
                 pass  # unique constraint si ya existe

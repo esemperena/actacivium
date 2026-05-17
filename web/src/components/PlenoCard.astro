@@ -56,13 +56,7 @@ const RESULTADO_DOT: Record<string, string> = {
       {diaSemana}, {fechaLarga}
     </a>
 
-    {pleno.resumen_ia && (
-      <p class="pleno-summary">
-        {pleno.resumen_ia.length > 180 ? pleno.resumen_ia.slice(0, 180) + "…" : pleno.resumen_ia}
-      </p>
-    )}
-
-    {!pleno.resumen_ia && highlights.length > 0 && (
+    {highlights.length > 0 ? (
       <ul class="pleno-highlights">
         {highlights.slice(0, 2).map((h) => (
           <li class="pleno-highlight-item">
@@ -70,10 +64,14 @@ const RESULTADO_DOT: Record<string, string> = {
               class="result-dot"
               style={`background: ${RESULTADO_DOT[h.resultado] ?? "var(--color-ink-subtle)"}`}
             />
-            <span>{h.titulo.length > 90 ? h.titulo.slice(0, 90) + "…" : h.titulo}</span>
+            <span>{h.titulo.length > 90 ? h.titulo.slice(0, 87).replace(/\s+\S*$/, "") + "…" : h.titulo}</span>
           </li>
         ))}
       </ul>
+    ) : pleno.resumen_ia && (
+      <p class="pleno-summary">
+        {pleno.resumen_ia.length > 180 ? pleno.resumen_ia.slice(0, 180) + "…" : pleno.resumen_ia}
+      </p>
     )}
 
     <div class="pleno-stats">
