@@ -61,11 +61,15 @@ const primerFecha = plenos.length > 0
 const accentColor = municipio.color_gobierno ?? "var(--color-accent)";
 
 const { summary, categoryStats } = dashboard;
+
+const ciudadTitle = municipio.nombre_alt && municipio.nombre_alt !== municipio.nombre
+  ? `${municipio.nombre_alt}-${municipio.nombre}`
+  : municipio.nombre;
 ---
 
 <Base
-  title={`${municipio.nombre} · Plenos Municipales · Acta Civium`}
-  description={`Plenos municipales del Ayuntamiento de ${municipio.nombre}. ${count} actas analizadas desde una perspectiva ciudadana.`}
+  title={`Plenos Municipales de ${ciudadTitle}`}
+  description={`Sigue los plenos del Ayuntamiento de ${ciudadTitle}: actas, votaciones, composición del pleno y temas debatidos.${municipio.alcalde ? ` Alcalde: ${municipio.alcalde} (${municipio.partido_gobierno}).` : ""}`}
 >
 
   <!-- ── CITY CONTEXT BAR ──────────────────────────────────────────────── -->
@@ -73,7 +77,7 @@ const { summary, categoryStats } = dashboard;
     <div class="city-bar-accent" style={`background: ${accentColor}`} />
 
     <div class="city-bar-name">
-      <span class="city-bar-title">{municipio.nombre}</span>
+      <h1 class="city-bar-title">{municipio.nombre}</h1>
       {municipio.nombre_alt && municipio.nombre_alt !== municipio.nombre && (
         <span class="city-bar-alt"> · {municipio.nombre_alt}</span>
       )}
@@ -122,6 +126,16 @@ const { summary, categoryStats } = dashboard;
     </div>
   </div>
 
+  <!-- ── SEO INTRO ───────────────────────────────────────────────────── -->
+  <p class="city-intro">
+    El Ayuntamiento de {ciudadTitle}{municipio.provincia ? `, ${municipio.provincia}` : ""}
+    {municipio.n_concejales ? ` cuenta con ${municipio.n_concejales} concejales` : ""}
+    {municipio.partido_gobierno && municipio.alcalde
+      ? ` y su gobierno lo encabeza ${municipio.alcalde} (${municipio.partido_gobierno}).`
+      : "."}
+    {" "}Acta Civium analiza las actas del pleno municipal para mostrar qué se aprueba, quién vota qué y qué temas dominan el debate político local.
+  </p>
+
   <!-- ── DASHBOARD (Composición, Agenda, Coincidencia) ────────────────── -->
   <CityDashboard municipio={municipio} dashboard={dashboard} />
 
@@ -130,9 +144,9 @@ const { summary, categoryStats } = dashboard;
 
     <!-- Main: pleno list -->
     <div>
-      <div class="section-label-row">
-        Archivo de actas · {count} {(count ?? 0) === 1 ? "sesión" : "sesiones"}
-      </div>
+      <h2 class="section-label-row">
+        Actas del pleno municipal de {municipio.nombre} · {count} {(count ?? 0) === 1 ? "sesión" : "sesiones"}
+      </h2>
 
       {plenos.length === 0 ? (
         <p style="color: var(--color-ink-muted); font-size: 0.875rem; padding: 32px 0; text-align: center; border: 1px dashed var(--color-border); border-radius: var(--radius);">
@@ -170,7 +184,7 @@ const { summary, categoryStats } = dashboard;
 
       <!-- Ficha del municipio -->
       <div class="sidebar-card">
-        <div class="sidebar-section-label">Ficha del municipio</div>
+        <h2 class="sidebar-section-label">Ficha del municipio</h2>
 
         {municipio.alcalde && (
           <div class="ficha-row">
@@ -215,7 +229,7 @@ const { summary, categoryStats } = dashboard;
       <!-- Temas más tratados -->
       {categoryStats.length > 0 && (
         <div class="sidebar-card">
-          <div class="sidebar-section-label">Temas más tratados</div>
+          <h2 class="sidebar-section-label">Temas más tratados</h2>
           {categoryStats.map(({ categoria, label, total }) => (
             <div class="topic-row">
               <span class:list={["badge", `badge-${categoria}`]}>{label}</span>
@@ -231,6 +245,15 @@ const { summary, categoryStats } = dashboard;
 </Base>
 
 <style>
+  /* ── SEO intro ─────────────────────────────────────────────────────── */
+  .city-intro {
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+    max-width: 72ch;
+    margin-bottom: 32px;
+  }
+
   /* ── City context bar ───────────────────────────────────────────────── */
   .city-bar {
     position: relative;

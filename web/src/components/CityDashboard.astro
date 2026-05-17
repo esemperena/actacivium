@@ -124,7 +124,7 @@ const heatColor = (share: number) => {
   <div class="dashboard-hero">
     <div class="dashboard-hero-copy">
       <p class="dashboard-kicker">Radar municipal</p>
-      <h2 class="dashboard-title">Como se mueve el pleno de {municipio.nombre}</h2>
+      <h2 class="dashboard-title">Actividad del pleno de {municipio.nombre_alt ?? municipio.nombre} · Sesiones y votaciones</h2>
       <p class="dashboard-subtitle">
         Lectura rapida de actividad, temas dominantes, grado de consenso y bloques de voto.
       </p>
@@ -145,7 +145,7 @@ const heatColor = (share: number) => {
     <section class="dashboard-panel dashboard-panel--compact dashboard-panel--equal">
       <div class="dashboard-panel-head dashboard-panel-head--tight">
         <p class="dashboard-panel-kicker">Composicion</p>
-        <h3 class="dashboard-panel-title dashboard-panel-title--sm">Quien ocupa el pleno</h3>
+        <h3 class="dashboard-panel-title dashboard-panel-title--sm">Composición del Ayuntamiento de {municipio.nombre}</h3>
       </div>
 
       {dashboard.composicion.length > 0 ? (
@@ -182,7 +182,7 @@ const heatColor = (share: number) => {
     <section class="dashboard-panel dashboard-panel--compact dashboard-panel--equal">
       <div class="dashboard-panel-head dashboard-panel-head--tight">
         <p class="dashboard-panel-kicker">Agenda</p>
-        <h3 class="dashboard-panel-title dashboard-panel-title--sm">Temas con mas peso</h3>
+        <h3 class="dashboard-panel-title dashboard-panel-title--sm">Temas más debatidos en el pleno</h3>
       </div>
 
       <div class="dashboard-bars dashboard-bars--compact">
@@ -204,7 +204,7 @@ const heatColor = (share: number) => {
   <section class="dashboard-panel dashboard-panel--full">
       <div class="dashboard-panel-head">
         <p class="dashboard-panel-kicker">Coincidencia por tema</p>
-        <h3 class="dashboard-panel-title">Que partidos votan parecido segun el asunto</h3>
+        <h3 class="dashboard-panel-title">Alianzas de voto por tema</h3>
       </div>
 
       {alignmentRows.length > 0 && pairColumns.length > 0 ? (
