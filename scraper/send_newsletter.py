@@ -20,10 +20,26 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 BREVO_API_KEY      = os.environ["BREVO_API_KEY"]
-BREVO_LIST_ID      = int(os.environ.get("BREVO_LIST_ID", "6"))
+BREVO_LIST_ID      = int(os.environ.get("BREVO_LIST_ID", "6"))        # San Sebastián
+BREVO_LIST_ID_CONGRESO = int(os.environ.get("BREVO_LIST_ID_CONGRESO", "7"))  # Congreso
 BREVO_SENDER_EMAIL = os.environ["BREVO_SENDER_EMAIL"]
 BREVO_SENDER_NAME  = os.environ.get("BREVO_SENDER_NAME", "Acta Civium")
 WEB_BASE_URL       = os.environ.get("WEB_BASE_URL", "https://actacivium.netlify.app")
+
+# Mapa nombre municipio → lista Brevo
+_LISTA_POR_MUNICIPIO: dict[str, int] = {
+    "San Sebastián": BREVO_LIST_ID,
+    "Congreso de los Diputados": BREVO_LIST_ID_CONGRESO,
+}
+
+def _lista_id_para(municipio_nombre: str) -> int:
+    return _LISTA_POR_MUNICIPIO.get(municipio_nombre, BREVO_LIST_ID)
+
+def _nombre_institucional(municipio_nombre: str) -> str:
+    """Nombre legible para el asunto del email."""
+    if "Congreso" in municipio_nombre:
+        return "el Congreso de los Diputados"
+    return municipio_nombre
 
 BREVO_API = "https://api.brevo.com/v3"
 HEADERS = {
@@ -529,23 +545,29 @@ def _enviar_test(asunto: str, html: str, email_destino: str) -> bool:
 
 # ── Punto de entrada público ─────────────────────────────────────────────────
 
-def enviar_newsletter(pleno_id: str, test_email: str | None = None) -> bool:
+def enviar_newsletter(
+    pleno_id: str,
+    test_email: str | None = None,
+    municipio_nombre: str = "San Sebastián",
+) -> bool:
     datos = obtener_datos_pleno(pleno_id)
     if not datos:
         print(f"    [!] Newsletter: pleno {pleno_id} no encontrado en BD")
         return False
 
-    fecha_fmt = _fecha_larga(datos["pleno"].get("fecha", ""))
-    tipo      = (datos["pleno"].get("tipo_sesion", "ordinaria") or "ordinaria").capitalize()
-    asunto    = f"Pleno {tipo} de San Sebastián — {fecha_fmt}"
-    html      = generar_html(datos)
+    fecha_fmt  = _fecha_larga(datos["pleno"].get("fecha", ""))
+    tipo       = (datos["pleno"].get("tipo_sesion", "ordinaria") or "ordinaria").capitalize()
+    institucion = _nombre_institucional(municipio_nombre)
+    asunto     = f"Pleno {tipo} de {institucion} — {fecha_fmt}"
+    lista_id   = _lista_id_para(municipio_nombre)
+    html       = generar_html(datos)
 
     if test_email:
         _enviar_test(asunto, html, test_email)
         print(f"    OK Newsletter de prueba enviada a {test_email}")
     else:
-        _crear_y_enviar_campana(asunto, html, [BREVO_LIST_ID])
-        print(f"    OK Newsletter enviada (lista {BREVO_LIST_ID}, {len(datos['puntos'])} puntos)")
+        _crear_y_enviar_campana(asunto, html, [lista_id])
+        print(f"    OK Newsletter enviada (lista {lista_id}, {len(datos['puntos'])} puntos)")
 
     return True
 

@@ -86,6 +86,22 @@ def limpiar_asistencia_pleno(pleno_id: str):
     get_client().table("asistencia").delete().eq("pleno_id", pleno_id).execute()
 
 
+def max_numero_acta(municipio_id: str) -> int:
+    """Devuelve el número_acta más alto ya procesado para un municipio, o 0 si no hay ninguno."""
+    res = (
+        get_client()
+        .table("plenos")
+        .select("numero_acta")
+        .eq("municipio_id", municipio_id)
+        .order("numero_acta", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if res.data:
+        return res.data[0]["numero_acta"]
+    return 0
+
+
 def registrar_log(municipio_id: str, pdfs_nuevos: int, pdfs_error: int, duracion: float, detalle: dict):
     get_client().table("scraping_log").insert({
         "municipio_id": municipio_id,

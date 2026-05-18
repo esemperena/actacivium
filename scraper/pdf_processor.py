@@ -864,9 +864,20 @@ def _llamar_claude(prompt: str, system_prompt: str | None = None,
         return None
 
 
+def _extraer_fragmento(texto: str, numero: int) -> str:
+    """Extrae hasta 3000 chars del cuerpo del punto N en el texto del pleno."""
+    pat = re.compile(rf"\b{numero}\.-\s+[A-ZÁÉÍÓÚÑÜ]")
+    m = pat.search(texto)
+    if not m:
+        return ""
+    inicio = m.start()
+    siguiente = re.search(rf"\b{numero + 1}\.-\s+[A-ZÁÉÍÓÚÑÜ]", texto[inicio + 10:])
+    fin = inicio + 10 + siguiente.start() if siguiente else inicio + 4000
+    return texto[inicio:fin][:3000]
+
+
 def _recortar_texto(texto: str, max_chars: int) -> str:
     if len(texto) <= max_chars:
         return texto
-    # Intentar cortar en un salto de línea limpio
     corte = texto.rfind("\n", 0, max_chars)
     return texto[: corte if corte > 0 else max_chars]
