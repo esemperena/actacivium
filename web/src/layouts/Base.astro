@@ -50,6 +50,17 @@ const currentPath = Astro.url.pathname;
       "url": Astro.site,
       "inLanguage": "es",
     })} />
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Acta Civium",
+      "description": "Plataforma de transparencia municipal que analiza las actas de los plenos y las explica en lenguaje ciudadano: votaciones, temas y quién vota qué.",
+      "url": Astro.site,
+      "applicationCategory": "GovernmentApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "es",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+    })} />
 
     <title>{fullTitle}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

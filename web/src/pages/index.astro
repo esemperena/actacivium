@@ -26,8 +26,8 @@ const CATEGORIAS: Record<string, string> = {
 ---
 
 <Base
-  title="Acta Civium"
-  description="Los plenos municipales en lenguaje ciudadano. Analizamos las actas del Ayuntamiento y te enviamos lo que importa cada semana."
+  title="Plenos municipales en lenguaje ciudadano"
+  description="Acta Civium transforma las actas de los plenos municipales en información útil para la ciudadanía: votaciones, temas debatidos y quién vota qué, sin tecnicismos."
 >
 
   <!-- ── HERO ────────────────────────────────────────────────────────────── -->
@@ -39,13 +39,14 @@ const CATEGORIAS: Record<string, string> = {
       </div>
 
       <h1 class="hero-h1">
-        El pleno municipal,<br />
+        Plenos municipales<br />
         <em>en lenguaje ciudadano.</em>
       </h1>
 
       <p class="hero-subtitle">
-        Analizamos las actas del Ayuntamiento y te enviamos
-        lo que importa. Semanal y gratuito.
+        Analizamos las actas de los plenos municipales y te explicamos
+        qué se aprobó, quién votó qué y qué temas dominan la agenda local.
+        Semanal y gratuito.
       </p>
 
       <form id="hero-form" class="hero-form">
@@ -87,9 +88,14 @@ const CATEGORIAS: Record<string, string> = {
   <!-- ── MUNICIPIOS ─────────────────────────────────────────────────────── -->
   <section class="content-section">
     <div class="section-header">
-      <span class="section-label-text">Municipios cubiertos</span>
+      <h2 class="section-label-text">Municipios con plenos analizados</h2>
       <div class="section-line" />
     </div>
+
+    <p class="muni-intro">
+      Análisis de las actas y votaciones de los plenos municipales, organizados
+      por tema y por partido. Transparencia local al alcance de cualquier ciudadano.
+    </p>
 
     <div class="muni-grid">
       {municipios.map((m) => (
@@ -123,7 +129,7 @@ const CATEGORIAS: Record<string, string> = {
   {puntosDestacados.length > 0 && (
     <section class="content-section">
       <div class="section-header">
-        <span class="section-label-text">Decisiones recientes destacadas</span>
+        <h2 class="section-label-text">Últimas decisiones del pleno municipal</h2>
         <div class="section-line" />
       </div>
 
@@ -159,7 +165,7 @@ const CATEGORIAS: Record<string, string> = {
   <!-- ── CÓMO FUNCIONA ─────────────────────────────────────────────────── -->
   <section class="content-section">
     <div class="section-header">
-      <span class="section-label-text">Cómo funciona</span>
+      <h2 class="section-label-text">Cómo analizamos las actas del pleno</h2>
       <div class="section-line" />
     </div>
     <div class="how-grid">
@@ -183,10 +189,10 @@ const CATEGORIAS: Record<string, string> = {
   <!-- ── SEGUNDO CTA ───────────────────────────────────────────────────── -->
   <section class="cta2-section -mx-8">
     <div class="cta2-inner">
-      <h2 class="cta2-h2">No te pierdas ningún pleno</h2>
+      <h2 class="cta2-h2">Recibe el resumen semanal del pleno municipal</h2>
       <p class="cta2-sub">
-        Suscríbete a la newsletter y recibe cada semana el análisis de los
-        acuerdos municipales de tu ciudad.
+        Suscríbete y recibe cada semana el análisis de las votaciones y
+        acuerdos del pleno de tu ayuntamiento, en lenguaje claro.
       </p>
       <form id="cta2-form" class="cta2-form">
         <input type="email" name="email" placeholder="tu@email.com" required class="cta2-input" />
@@ -398,6 +404,15 @@ const CATEGORIAS: Record<string, string> = {
     flex: 1;
     height: 1px;
     background: var(--color-border);
+  }
+
+  /* Municipality intro */
+  .muni-intro {
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+    max-width: 64ch;
+    margin-bottom: 20px;
   }
 
   /* Municipality cards */
