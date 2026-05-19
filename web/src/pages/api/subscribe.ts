@@ -185,7 +185,7 @@ export const POST: APIRoute = async ({ request }) => {
   );
 
   const { data: municipio } = await supabase
-    .from("municipios")
+    .from("instituciones")
     .select("nombre, nombre_alt, brevo_list_id")
     .eq("slug", ciudad)
     .single();

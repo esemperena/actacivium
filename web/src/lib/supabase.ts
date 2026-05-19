@@ -15,7 +15,7 @@ export interface Municipio {
   provincia: string;
   comunidad: string;
   poblacion: number | null;
-  n_concejales: number | null;
+  n_representantes: number | null;
   alcalde: string | null;
   partido_gobierno: string | null;
   color_gobierno: string | null;
@@ -26,7 +26,7 @@ export interface Municipio {
 
 export interface Pleno {
   id: string;
-  municipio_id: string;
+  institucion_id: string;
   numero_acta: number;
   fecha: string;
   tipo_sesion: "ordinaria" | "extraordinaria" | "urgente";
@@ -62,7 +62,7 @@ export interface Votacion {
   partido: string;
   siglas: string;
   color_hex: string;
-  n_concejales: number | null;
+  n_representantes: number | null;
   votos_favor: number;
   votos_contra: number;
   abstenciones: number;
@@ -175,7 +175,7 @@ export interface CityDashboardData {
 export async function getMunicipios(): Promise<Municipio[]> {
   try {
     const { data } = await supabase
-      .from("municipios")
+      .from("instituciones")
       .select("*")
       .eq("activo", true)
       .order("nombre");
@@ -188,7 +188,7 @@ export async function getMunicipios(): Promise<Municipio[]> {
 export async function getMunicipio(slug: string): Promise<Municipio | null> {
   try {
     const { data } = await supabase
-      .from("municipios")
+      .from("instituciones")
       .select("*")
       .eq("slug", slug)
       .single();
@@ -204,7 +204,7 @@ export async function getStatsMunicipio(municipioId: string) {
       supabase
         .from("plenos")
         .select("id, fecha", { count: "exact" })
-        .eq("municipio_id", municipioId)
+        .eq("institucion_id", municipioId)
         .eq("estado", "procesado")
         .order("fecha", { ascending: false })
         .limit(1),
@@ -217,7 +217,7 @@ export async function getStatsMunicipio(municipioId: string) {
             await supabase
               .from("plenos")
               .select("id")
-              .eq("municipio_id", municipioId)
+              .eq("institucion_id", municipioId)
               .eq("estado", "procesado")
           ).data?.map((p) => p.id) ?? []
         ),
@@ -275,24 +275,24 @@ export async function getCityDashboard(
       supabase
         .from("v_plenos")
         .select("id, numero_acta, fecha, tipo_sesion, total_puntos, aprobados, rechazados, unanimes, n_asistentes")
-        .eq("municipio_id", municipioId)
+        .eq("institucion_id", municipioId)
         .eq("estado", "procesado")
         .order("fecha", { ascending: false }),
       supabase
         .from("partidos")
-        .select("siglas, color_hex, n_concejales")
-        .eq("municipio_id", municipioId)
+        .select("siglas, color_hex, n_representantes")
+        .eq("institucion_id", municipioId)
         .eq("activo", true)
-        .order("n_concejales", { ascending: false }),
+        .order("n_representantes", { ascending: false }),
     ]);
 
     const plenos = plenosRes.data ?? [];
     const composicion = (partidosRes.data ?? [])
-      .filter((row) => (row.n_concejales ?? 0) > 0)
+      .filter((row) => (row.n_representantes ?? 0) > 0)
       .map((row) => ({
         sigla: row.siglas,
         color: row.color_hex ?? "#888888",
-        concejales: row.n_concejales ?? 0,
+        concejales: row.n_representantes ?? 0,
       }));
 
     if (plenos.length === 0) {
@@ -677,7 +677,7 @@ export async function getPlenosByMunicipio(
     const { data, count } = await supabase
       .from("v_plenos")
       .select("*", { count: "exact" })
-      .eq("municipio_id", municipioId)
+      .eq("institucion_id", municipioId)
       .eq("estado", "procesado")
       .order("fecha", { ascending: false })
       .range(offset, offset + pageSize - 1);
@@ -751,11 +751,11 @@ export async function getAsistenciaPleno(plenoId: string): Promise<AsistenciaPar
 
     const { data } = await supabase
       .from("votaciones")
-      .select("votos_favor, votos_contra, abstenciones, partido_id, partidos(siglas, color_hex, n_concejales)")
+      .select("votos_favor, votos_contra, abstenciones, partido_id, partidos(siglas, color_hex, n_representantes)")
       .in("punto_id", puntoIds);
     if (!data?.length) return [];
 
-    const byParty: Record<string, { sigla: string; color: string; n_concejales: number | null; counts: number[] }> = {};
+    const byParty: Record<string, { sigla: string; color: string; n_representantes: number | null; counts: number[] }> = {};
     for (const v of data as any[]) {
       if (!v.partido_id || !v.partidos) continue;
       const total = v.votos_favor + v.votos_contra + v.abstenciones;
@@ -763,7 +763,7 @@ export async function getAsistenciaPleno(plenoId: string): Promise<AsistenciaPar
         byParty[v.partido_id] = {
           sigla: v.partidos.siglas,
           color: v.partidos.color_hex ?? "#888",
-          n_concejales: v.partidos.n_concejales ?? null,
+          n_representantes: v.partidos.n_representantes ?? null,
           counts: [],
         };
       }
@@ -773,7 +773,7 @@ export async function getAsistenciaPleno(plenoId: string): Promise<AsistenciaPar
     return Object.values(byParty)
       .map((p) => {
         // Escaños: usar el oficial de BD; si no existe, inferir del máximo de votos
-        const seats = p.n_concejales ?? Math.max(...p.counts);
+        const seats = p.n_representantes ?? Math.max(...p.counts);
         // Presentes: moda de los recuentos de votaciones con votos emitidos
         const active = p.counts.filter((c) => c > 0);
         const freq: Record<number, number> = {};
@@ -794,13 +794,13 @@ export async function getVotacionesPunto(puntoId: string): Promise<Votacion[]> {
   try {
     const { data } = await supabase
       .from("votaciones")
-      .select(`votos_favor, votos_contra, abstenciones, partidos ( nombre, siglas, color_hex, n_concejales )`)
+      .select(`votos_favor, votos_contra, abstenciones, partidos ( nombre, siglas, color_hex, n_representantes )`)
       .eq("punto_id", puntoId);
     return (data ?? []).map((v: any) => ({
       partido: v.partidos.nombre,
       siglas: v.partidos.siglas,
       color_hex: v.partidos.color_hex,
-      n_concejales: v.partidos.n_concejales ?? null,
+      n_representantes: v.partidos.n_representantes ?? null,
       votos_favor: v.votos_favor,
       votos_contra: v.votos_contra,
       abstenciones: v.abstenciones,

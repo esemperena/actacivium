@@ -92,7 +92,7 @@ def main():
 
 def procesar_pdf_local(pdf_path: Path, info: dict, municipio_id: str) -> bool:
     pleno_id = db.insertar_pleno({
-        "municipio_id": municipio_id,
+        "institucion_id": municipio_id,
         "numero_acta": info["numero_acta"],
         "fecha": info["fecha_iso"],
         "tipo_sesion": info["tipo"],

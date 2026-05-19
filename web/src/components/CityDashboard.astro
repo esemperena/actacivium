@@ -13,7 +13,7 @@ const { municipio, dashboard, introText } = Astro.props;
 
 const totalConcejales =
   dashboard.composicion.reduce((sum, item) => sum + item.concejales, 0) ||
-  municipio.n_concejales ||
+  municipio.n_representantes ||
   0;
 
 const compactDate = (value: string) =>

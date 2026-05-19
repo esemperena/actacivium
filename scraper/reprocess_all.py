@@ -28,7 +28,7 @@ def main():
     query = (
         client.table("plenos")
         .select("numero_acta, fecha, tipo_sesion, url_pdf_original")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .order("numero_acta")
     )
     if args.year:

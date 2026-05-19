@@ -176,14 +176,14 @@ def main():
     client = get_client()
 
     # Obtener municipio
-    muni = client.table("municipios").select("id").eq("slug", "san-sebastian").execute()
+    muni = client.table("instituciones").select("id").eq("slug", "san-sebastian").execute()
     municipio_id = muni.data[0]["id"]
 
     # Obtener plenos sin resumen
     plenos_sin_resumen = (
         client.table("plenos")
         .select("id, numero_acta, fecha, texto_completo, resumen_ia")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .eq("estado", "procesado")
         .is_("resumen_ia", "null")
         .order("numero_acta")
@@ -195,7 +195,7 @@ def main():
     todos_plenos = (
         client.table("plenos")
         .select("id, numero_acta, fecha, texto_completo, resumen_ia")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .eq("estado", "procesado")
         .order("numero_acta")
         .execute()

@@ -428,7 +428,7 @@ def importar_acta(pdf_path: Path, municipio_id: str) -> bool:
         return False
 
     pleno_data = {
-        "municipio_id":      municipio_id,
+        "institucion_id":    municipio_id,
         "numero_acta":       meta["numero_acta"],
         "fecha":             meta["fecha"],
         "tipo_sesion":       meta["tipo_sesion"],
@@ -505,7 +505,7 @@ def importar_acta(pdf_path: Path, municipio_id: str) -> bool:
 def main():
     print("\n" + "="*55 + "\n  Acta Civium — Importacion de actas\n" + "="*55)
 
-    municipios = sb_get("municipios", {"nombre": "eq.San Sebastián", "select": "id"})
+    municipios = sb_get("instituciones", {"nombre": "eq.San Sebastián", "select": "id"})
     if not municipios:
         print("No se encuentra el municipio. Ejecuta el schema.sql en Supabase.")
         sys.exit(1)

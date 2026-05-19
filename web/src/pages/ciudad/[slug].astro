@@ -68,7 +68,7 @@ const ciudadTitle = municipio.nombre_alt && municipio.nombre_alt !== municipio.n
 
 const introText = [
   `El Ayuntamiento de ${ciudadTitle}${municipio.provincia ? `, ${municipio.provincia},` : ""}`,
-  municipio.n_concejales ? `cuenta con ${municipio.n_concejales} concejales` : null,
+  municipio.n_representantes ? `cuenta con ${municipio.n_representantes} concejales` : null,
   municipio.partido_gobierno && municipio.alcalde
     ? `y su gobierno lo encabeza ${municipio.alcalde} (${municipio.partido_gobierno}).`
     : null,
@@ -122,7 +122,7 @@ const introText = [
       <div class="metric-label">Rechazados</div>
     </div>
     <div class="metric-cell">
-      <div class="metric-val">{municipio.n_concejales ?? "—"}</div>
+      <div class="metric-val">{municipio.n_representantes ?? "—"}</div>
       <div class="metric-label">Concejales</div>
     </div>
     <div class="metric-cell">
@@ -204,10 +204,10 @@ const introText = [
           </div>
         )}
 
-        {municipio.n_concejales && (
+        {municipio.n_representantes && (
           <div class="ficha-row">
-            <div class="ficha-dt">Concejales</div>
-            <div class="ficha-dd">{municipio.n_concejales}</div>
+            <div class="ficha-dt">Representantes</div>
+            <div class="ficha-dd">{municipio.n_representantes}</div>
           </div>
         )}
 

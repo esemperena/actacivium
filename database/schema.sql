@@ -8,9 +8,9 @@ create extension if not exists "unaccent";
 create extension if not exists "pg_trgm";  -- búsqueda full-text difusa
 
 -- ============================================================
--- MUNICIPIOS
+-- INSTITUCIONES (municipios, parlamentos, etc.)
 -- ============================================================
-create table municipios (
+create table instituciones (
   id               uuid primary key default uuid_generate_v4(),
   nombre           text not null,
   nombre_alt       text,                        -- "Donostia" para San Sebastián
@@ -18,8 +18,8 @@ create table municipios (
   provincia        text not null,
   comunidad        text not null,
   poblacion        integer,
-  n_concejales     integer,
-  alcalde          text,                        -- nombre del alcalde/alcaldesa actual
+  n_representantes integer,                     -- escaños/concejales/diputados
+  alcalde          text,                        -- nombre del alcalde/presidenta actual
   partido_gobierno text,                        -- siglas del partido gobernante
   color_gobierno   text default '#1a3a2a',      -- color hex del partido
   web_oficial      text,
@@ -29,9 +29,9 @@ create table municipios (
 );
 
 -- Datos iniciales
-insert into municipios (nombre, nombre_alt, slug, provincia, comunidad, poblacion,
-                        n_concejales, alcalde, partido_gobierno, color_gobierno,
-                        web_oficial, url_actas)
+insert into instituciones (nombre, nombre_alt, slug, provincia, comunidad, poblacion,
+                           n_representantes, alcalde, partido_gobierno, color_gobierno,
+                           web_oficial, url_actas)
 values (
   'San Sebastián', 'Donostia', 'san-sebastian',
   'Gipuzkoa', 'País Vasco', 188102, 27,
@@ -44,22 +44,22 @@ values (
 -- PARTIDOS POLÍTICOS
 -- ============================================================
 create table partidos (
-  id            uuid primary key default uuid_generate_v4(),
-  municipio_id  uuid references municipios(id),  -- null = partido nacional/regional
-  nombre        text not null,
-  siglas        text not null,
-  color_hex     text not null default '#888888',
-  posicion      text check (posicion in (
-                  'izquierda', 'centro_izquierda', 'centro',
-                  'centro_derecha', 'derecha', 'otro'
-                )) default 'otro',
-  n_concejales  integer,                          -- escaños oficiales en el pleno
-  activo        boolean not null default true
+  id               uuid primary key default uuid_generate_v4(),
+  institucion_id   uuid references instituciones(id),  -- null = partido nacional/regional
+  nombre           text not null,
+  siglas           text not null,
+  color_hex        text not null default '#888888',
+  posicion         text check (posicion in (
+                     'izquierda', 'centro_izquierda', 'centro',
+                     'centro_derecha', 'derecha', 'otro'
+                   )) default 'otro',
+  n_representantes integer,                            -- escaños oficiales en el pleno
+  activo           boolean not null default true
 );
 
 -- Partidos iniciales de San Sebastián
-with muni as (select id from municipios where nombre = 'San Sebastián' limit 1)
-insert into partidos (municipio_id, nombre, siglas, color_hex, posicion) values
+with muni as (select id from instituciones where nombre = 'San Sebastián' limit 1)
+insert into partidos (institucion_id, nombre, siglas, color_hex, posicion) values
   ((select id from muni), 'Euzko Alderdi Jeltzalea / Partido Nacionalista Vasco', 'EAJ/PNV', '#007A3D', 'centro'),
   ((select id from muni), 'EH Bildu', 'EH Bildu', '#5B2D8E', 'izquierda'),
   ((select id from muni), 'Partido Socialista de Euskadi - Euskadiko Ezkerra', 'PSE-EE', '#E4003A', 'centro_izquierda'),
@@ -70,8 +70,8 @@ insert into partidos (municipio_id, nombre, siglas, color_hex, posicion) values
 -- CONCEJALES
 -- ============================================================
 create table concejales (
-  id            uuid primary key default uuid_generate_v4(),
-  municipio_id  uuid not null references municipios(id),
+  id               uuid primary key default uuid_generate_v4(),
+  institucion_id   uuid not null references instituciones(id),
   partido_id    uuid references partidos(id),
   nombre        text not null,
   cargo         text check (cargo in ('alcalde', 'teniente_alcalde', 'concejal')) default 'concejal',
@@ -85,7 +85,7 @@ create table concejales (
 -- ============================================================
 create table plenos (
   id                    uuid primary key default uuid_generate_v4(),
-  municipio_id          uuid not null references municipios(id),
+  institucion_id        uuid not null references instituciones(id),
   numero_acta           integer not null,
   fecha                 date not null,
   tipo_sesion           text not null check (tipo_sesion in ('ordinaria', 'extraordinaria', 'urgente')),
@@ -104,12 +104,12 @@ create table plenos (
   error_msg             text,
   created_at            timestamptz not null default now(),
   procesado_at          timestamptz,
-  unique (municipio_id, numero_acta)
+  unique (institucion_id, numero_acta)
 );
 
 -- Índices para búsqueda
 create index plenos_fecha_idx on plenos (fecha desc);
-create index plenos_municipio_idx on plenos (municipio_id);
+create index plenos_institucion_idx on plenos (institucion_id);
 create index plenos_texto_fts on plenos using gin (to_tsvector('spanish', coalesce(texto_completo, '')));
 
 -- ============================================================
@@ -213,8 +213,8 @@ create table punto_tags (
 -- LOG DE SCRAPING (para debug y trazabilidad)
 -- ============================================================
 create table scraping_log (
-  id            uuid primary key default uuid_generate_v4(),
-  municipio_id  uuid references municipios(id),
+  id               uuid primary key default uuid_generate_v4(),
+  institucion_id   uuid references instituciones(id),
   ejecutado_at  timestamptz not null default now(),
   pdfs_nuevos   integer default 0,
   pdfs_error    integer default 0,
@@ -230,7 +230,7 @@ create table scraping_log (
 create or replace view v_plenos as
 select
   p.id,
-  p.municipio_id,
+  p.institucion_id,
   p.numero_acta,
   p.fecha,
   p.tipo_sesion,
@@ -244,9 +244,9 @@ select
   count(pu.id) filter (where pu.resultado = 'rechazado' and pu.tipo not in ('dar_cuenta', 'otro')) as rechazados,
   count(pu.id) filter (where pu.unanimidad = true and pu.tipo not in ('dar_cuenta', 'otro')) as unanimes
 from plenos p
-join municipios m on m.id = p.municipio_id
+join instituciones m on m.id = p.institucion_id
 left join puntos pu on pu.pleno_id = p.id
-group by p.id, p.municipio_id, m.nombre;
+group by p.id, p.institucion_id, m.nombre;
 
 -- Vista: posición de cada partido por categoría temática
 create or replace view v_votos_por_partido_categoria as
@@ -280,6 +280,6 @@ select
   m.nombre as municipio
 from puntos pu
 join plenos pl on pl.id = pu.pleno_id
-join municipios m on m.id = pl.municipio_id
+join instituciones m on m.id = pl.institucion_id
 where pu.relevancia_social >= 4
 order by pl.fecha desc, pu.relevancia_social desc;

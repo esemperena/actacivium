@@ -24,7 +24,7 @@ def main():
         db.get_client()
         .table("plenos")
         .select("id, numero_acta, texto_completo")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .eq("estado", "procesado")
         .not_.is_("texto_completo", "null")
         .order("numero_acta")

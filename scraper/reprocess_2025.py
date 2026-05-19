@@ -8,7 +8,7 @@ if __name__ == "__main__":
     municipio_id = db.get_municipio_id("San Sebastián")
     client = db.get_client()
 
-    plenos = client.table("plenos").select("numero_acta").eq("municipio_id", municipio_id).gte("fecha", "2025-01-01").lt("fecha", "2026-01-01").order("numero_acta").execute()
+    plenos = client.table("plenos").select("numero_acta").eq("institucion_id", municipio_id).gte("fecha", "2025-01-01").lt("fecha", "2026-01-01").order("numero_acta").execute()
     nums = sorted([p["numero_acta"] for p in plenos.data])
     print(f"Reprocesando {len(nums)} actas: {nums}\n")
 

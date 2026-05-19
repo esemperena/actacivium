@@ -3,10 +3,10 @@
 -- Ejecutar después de schema.sql
 -- ============================================================
 
--- Municipio (usamos la tabla municipios como contenedor genérico de instituciones)
-insert into municipios (
+-- Institución (tabla instituciones como contenedor genérico)
+insert into instituciones (
     nombre, nombre_alt, slug, provincia, comunidad, poblacion,
-    n_concejales, alcalde, partido_gobierno, color_gobierno,
+    n_representantes, alcalde, partido_gobierno, color_gobierno,
     web_oficial, url_actas
 ) values (
     'Congreso de los Diputados',
@@ -27,9 +27,9 @@ insert into municipios (
 -- municipio_id se resuelve por nombre para evitar depender del UUID generado
 
 with muni as (
-    select id from municipios where slug = 'congreso' limit 1
+    select id from instituciones where slug = 'congreso' limit 1
 )
-insert into partidos (municipio_id, nombre, siglas, color_hex, posicion, n_concejales) values
+insert into partidos (institucion_id, nombre, siglas, color_hex, posicion, n_representantes) values
     ((select id from muni), 'Grupo Parlamentario Popular',                'PP',      '#003A94', 'derecha',         137),
     ((select id from muni), 'Grupo Parlamentario Socialista',             'PSOE',    '#E31C23', 'centro_izquierda',117),
     ((select id from muni), 'Grupo Parlamentario Vox',                    'VOX',     '#5FC946', 'derecha',          33),

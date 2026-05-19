@@ -40,7 +40,7 @@ def main():
     q = (
         client.table("plenos")
         .select("id, numero_acta, texto_completo")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .eq("estado", "procesado")
         .order("numero_acta")
     )

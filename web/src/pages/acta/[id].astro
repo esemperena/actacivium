@@ -15,7 +15,7 @@ const [puntos, { data: meta }, asistenciaPartidos] = await Promise.all([
   getPuntosPleno(id!),
   supabase
     .from("plenos")
-    .select("url_pdf_original, n_asistentes, n_ausentes, alcalde_nombre, secretaria_nombre, hora_inicio, hora_fin, municipio_id")
+    .select("url_pdf_original, n_asistentes, n_ausentes, alcalde_nombre, secretaria_nombre, hora_inicio, hora_fin, institucion_id")
     .eq("id", id!)
     .single(),
   getAsistenciaPleno(id!),
@@ -31,13 +31,13 @@ await Promise.all(
   })
 );
 
-// Concejales por partido: oficial (n_concejales) o máximo votos como fallback
-const partidoMeta: Record<string, { maxVotos: number; color: string; n_concejales: number | null }> = {};
+// Representantes por partido: oficial (n_representantes) o máximo votos como fallback
+const partidoMeta: Record<string, { maxVotos: number; color: string; n_representantes: number | null }> = {};
 for (const votos of Object.values(votacionesPorPunto)) {
   for (const v of votos) {
     const total = v.votos_favor + v.votos_contra + v.abstenciones;
     if (!partidoMeta[v.siglas]) {
-      partidoMeta[v.siglas] = { maxVotos: 0, color: v.color_hex ?? "#888", n_concejales: v.n_concejales ?? null };
+      partidoMeta[v.siglas] = { maxVotos: 0, color: v.color_hex ?? "#888", n_representantes: v.n_representantes ?? null };
     }
     if (total > partidoMeta[v.siglas].maxVotos) partidoMeta[v.siglas].maxVotos = total;
   }
@@ -47,7 +47,7 @@ for (const votos of Object.values(votacionesPorPunto)) {
 const composicion = Object.entries(partidoMeta)
   .map(([siglas, m]) => ({
     sigla: siglas,
-    concejales: m.n_concejales ?? m.maxVotos,
+    concejales: m.n_representantes ?? m.maxVotos,
     color: m.color,
   }))
   .sort((a, b) => b.concejales - a.concejales);
@@ -63,12 +63,12 @@ const puntosControversia = puntos.filter((p) => {
 let municipioSlug   = "";
 let municipioNombre = pleno.municipio ?? "San Sebastián";
 let partidoGobierno: string | null = null;
-if (meta?.municipio_id) {
+if (meta?.institucion_id) {
   try {
     const { data: muni } = await supabase
-      .from("municipios")
+      .from("instituciones")
       .select("slug, nombre, partido_gobierno")
-      .eq("id", meta.municipio_id)
+      .eq("id", meta.institucion_id)
       .single();
     municipioSlug   = muni?.slug   ?? "";
     municipioNombre = muni?.nombre ?? municipioNombre;

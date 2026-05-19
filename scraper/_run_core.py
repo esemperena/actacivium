@@ -121,7 +121,7 @@ def _procesar_acta(acta, municipio_id: str, temp_dir: Path,
     fecha_para_insert = fecha_iso or datetime.now().strftime("%Y-%m-%d")
 
     pleno_id = db.insertar_pleno({
-        "municipio_id": municipio_id,
+        "institucion_id": municipio_id,
         "numero_acta": acta.numero_acta,
         "fecha": fecha_para_insert,
         "tipo_sesion": acta.tipo,

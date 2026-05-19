@@ -12,7 +12,7 @@ def get_client() -> Client:
 
 
 def get_municipio_id(nombre: str) -> str:
-    res = get_client().table("municipios").select("id").eq("nombre", nombre).single().execute()
+    res = get_client().table("instituciones").select("id").eq("nombre", nombre).single().execute()
     return res.data["id"]
 
 
@@ -21,7 +21,7 @@ def acta_ya_existe(municipio_id: str, numero_acta: int) -> bool:
         get_client()
         .table("plenos")
         .select("id")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .eq("numero_acta", numero_acta)
         .execute()
     )
@@ -33,7 +33,7 @@ def eliminar_pleno(municipio_id: str, numero_acta: int):
         get_client()
         .table("plenos")
         .select("id")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .eq("numero_acta", numero_acta)
         .execute()
     )
@@ -68,7 +68,7 @@ def insertar_votacion(datos: dict):
 
 def get_partido_id(municipio_id: str, siglas: str) -> str | None:
     """Matching bidireccional: 'ELKARREKIN DONOSTIA' encuentra 'Elkarrekin'."""
-    res = get_client().table("partidos").select("id, siglas").eq("municipio_id", municipio_id).execute()
+    res = get_client().table("partidos").select("id, siglas").eq("institucion_id", municipio_id).execute()
     siglas_up = siglas.upper().strip()
     for row in res.data:
         db_up = row["siglas"].upper().strip()
@@ -87,12 +87,12 @@ def limpiar_asistencia_pleno(pleno_id: str):
 
 
 def max_numero_acta(municipio_id: str) -> int:
-    """Devuelve el número_acta más alto ya procesado para un municipio, o 0 si no hay ninguno."""
+    """Devuelve el número_acta más alto ya procesado para una institución, o 0 si no hay ninguno."""
     res = (
         get_client()
         .table("plenos")
         .select("numero_acta")
-        .eq("municipio_id", municipio_id)
+        .eq("institucion_id", municipio_id)
         .order("numero_acta", desc=True)
         .limit(1)
         .execute()
@@ -104,7 +104,7 @@ def max_numero_acta(municipio_id: str) -> int:
 
 def registrar_log(municipio_id: str, pdfs_nuevos: int, pdfs_error: int, duracion: float, detalle: dict):
     get_client().table("scraping_log").insert({
-        "municipio_id": municipio_id,
+        "institucion_id": municipio_id,
         "pdfs_nuevos": pdfs_nuevos,
         "pdfs_error": pdfs_error,
         "duracion_seg": duracion,
