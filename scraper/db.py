@@ -102,6 +102,25 @@ def max_numero_acta(municipio_id: str) -> int:
     return 0
 
 
+def get_or_create_tag(slug: str, nombre: str) -> str:
+    """Devuelve el id del tag con ese slug, creándolo si no existe."""
+    res = get_client().table("tags").select("id").eq("slug", slug).execute()
+    if res.data:
+        return res.data[0]["id"]
+    res = get_client().table("tags").insert({"nombre": nombre, "slug": slug}).execute()
+    return res.data[0]["id"]
+
+
+def insertar_punto_tags(punto_id: str, tag_ids: list[str]):
+    if not tag_ids:
+        return
+    rows = [{"punto_id": punto_id, "tag_id": tid} for tid in tag_ids]
+    try:
+        get_client().table("punto_tags").insert(rows).execute()
+    except Exception:
+        pass
+
+
 def registrar_log(municipio_id: str, pdfs_nuevos: int, pdfs_error: int, duracion: float, detalle: dict):
     get_client().table("scraping_log").insert({
         "municipio_id": municipio_id,

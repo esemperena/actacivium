@@ -31,6 +31,9 @@ TIPOS_CON_PROPONENTE = {
     "declaracion_institucional",
 }
 
+# Tipos que nunca se someten a votación en el Congreso
+_TIPOS_SIN_VOTACION = {"pregunta_oral", "pregunta_escrita", "interpelacion", "dar_cuenta"}
+
 
 def main(
     municipio_nombre: str,
@@ -201,14 +204,24 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
         num = p["numero"]
         titulo = p["titulo"]
         vot = votaciones_por_punto.get(num, {})
-        resultado = vot.get("resultado") or "sin_votacion"
-        unanimidad = vot.get("unanimidad")
 
         categoria = processor.clasificar_categoria(titulo)
-        tipo = processor.clasificar_tipo(titulo)
+        tipo = p.get("tipo_seccion") or processor.clasificar_tipo(titulo)
+
+        # Preguntas, interpelaciones y dar_cuenta nunca se votan
+        if tipo in _TIPOS_SIN_VOTACION:
+            resultado = "sin_votacion"
+            unanimidad = None
+        else:
+            resultado = vot.get("resultado") or "sin_votacion"
+            unanimidad = vot.get("unanimidad")
+
         comision = processor.clasificar_comision(titulo)
 
-        extracto = processor._extraer_fragmento(texto_completo, num) if texto_completo else titulo
+        extracto = (
+            processor._extraer_fragmento(texto_completo, num, p.get("expediente"), titulo)
+            if texto_completo else titulo
+        )
         texto_para_resumen = extracto or titulo
         resumen_ia = processor.generar_resumen_punto(titulo, resultado, texto_para_resumen)
 
@@ -247,10 +260,12 @@ def _insertar_puntos(pleno_id: str, municipio_id: str, puntos_sumario: list,
             "unanimidad": unanimidad,
             "grupo_proponente_id": grupo_proponente_id,
             "texto_completo": extracto or None,
-            "resumen_ia": resumen_ia[:600] if resumen_ia else None,
+            "resumen_ia": _truncar_resumen(resumen_ia, 600) if resumen_ia else None,
             "relevancia_social": relevancia_social,
             "es_urgencia": p.get("es_urgencia", False),
         })
+
+        _insertar_tags(punto_id, categoria, tipo)
 
         for siglas, votos in vot.get("partidos", {}).items():
             partido_id = db.get_partido_id(municipio_id, siglas)
@@ -290,6 +305,26 @@ def _insertar_asistencia(pleno_id: str, municipio_id: str, registros: list[dict]
             "asistio": r["asistio"],
         })
     db.insertar_asistencia_bulk(filas)
+
+
+def _insertar_tags(punto_id: str, categoria: str, tipo: str):
+    """Genera y persiste tags de categoría y tipo para el punto."""
+    tag_ids = []
+    if categoria and categoria != "otro":
+        tag_ids.append(db.get_or_create_tag(categoria, categoria.replace("_", " ")))
+    if tipo and tipo not in ("otro", "sin_votacion"):
+        tag_ids.append(db.get_or_create_tag(tipo, tipo.replace("_", " ")))
+    db.insertar_punto_tags(punto_id, tag_ids)
+
+
+def _truncar_resumen(texto: str, max_chars: int) -> str:
+    """Trunca en el último '.' antes de max_chars para no cortar a mitad de frase."""
+    if len(texto) <= max_chars:
+        return texto
+    corte = texto.rfind(".", 0, max_chars)
+    if corte > max_chars // 2:
+        return texto[: corte + 1]
+    return texto[:max_chars]
 
 
 def _registrar_log(municipio_id: str, nuevas: int, errores: int, inicio: float):

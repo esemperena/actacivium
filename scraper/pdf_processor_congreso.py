@@ -37,6 +37,36 @@ MESES = {
     "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12",
 }
 
+_HORAS_ES = {
+    "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5,
+    "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10,
+    "once": 11, "doce": 12, "trece": 13, "catorce": 14, "quince": 15,
+    "dieciséis": 16, "diecisiete": 17, "dieciocho": 18, "diecinueve": 19,
+    "veinte": 20, "veintiuna": 21, "veintidós": 22, "veintitrés": 23,
+}
+_MINUTOS_ES = {
+    "cinco": 5, "diez": 10, "cuarto": 15, "quince": 15,
+    "veinte": 20, "veinticinco": 25, "media": 30, "treinta": 30,
+    "treinta y cinco": 35, "cuarenta": 40, "cuarenta y cinco": 45,
+    "cincuenta": 50, "cincuenta y cinco": 55,
+}
+
+
+def _hora_palabras_a_hhmm(texto: str) -> str | None:
+    """'diez horas y cinco minutos' → '10:05'. Devuelve None si no parsea."""
+    m = re.search(
+        r"(\w+)\s+horas?(?:\s+y\s+(treinta\s+y\s+cinco|cuarenta\s+y\s+cinco|"
+        r"cincuenta\s+y\s+cinco|\w+)\s+minutos?)?",
+        texto, re.I,
+    )
+    if not m:
+        return None
+    hora = _HORAS_ES.get(m.group(1).lower())
+    if hora is None:
+        return None
+    mins = _MINUTOS_ES.get((m.group(2) or "").lower().strip(), 0)
+    return f"{hora:02d}:{mins:02d}"
+
 # Em dash (U+2014) que usa el Congreso para bullets de items
 EM_DASH = "—"
 # Non-breaking hyphen (U+2011) que aparece en referencias (número 92‑1)
@@ -127,6 +157,16 @@ def extraer_metadatos(texto: str) -> dict:
     if re.search(r"sesi[oó]n\s+extraordinaria", texto[:3000], re.I):
         meta["tipo_sesion"] = "extraordinaria"
 
+    # Hora de inicio: "Se abre la sesión a las diez horas y cinco minutos."
+    m = re.search(
+        r"Se\s+(?:abre|inicia)\s+la\s+sesi[oó]n\s+a\s+las?\s+(.+?)(?:\s+de\s+la\s+\w+)?[.,]",
+        texto, re.I,
+    )
+    if m:
+        hora = _hora_palabras_a_hhmm(m.group(1))
+        if hora:
+            meta["hora_inicio"] = hora
+
     return meta
 
 
@@ -147,6 +187,7 @@ def extraer_asistentes_con_partido(texto: str) -> list[dict]:
 _SECCIONES_TIPO = [
     (r"convalidaci[oó]n o derogaci[oó]n de reales decretos",  "aprobacion_definitiva"),
     (r"debates? de totalidad",                                  "aprobacion_inicial"),
+    (r"proposiciones? de ley",                                  "proposicion_normativa"),
     (r"proyectos? de ley",                                      "aprobacion_definitiva"),
     (r"dictamen",                                               "aprobacion_definitiva"),
     (r"proposiciones? no de ley",                               "mocion"),
@@ -371,9 +412,8 @@ def extraer_votaciones_por_punto(texto: str) -> dict[int, dict]:
         bloque = texto[m_ini.end(): fin_sumario]
         _parsear_votos_sumario(bloque, puntos, exp_a_num, result)
 
-    # ── Fuente 2: cuerpo del DS (complementa o sustituye al SUMARIO) ─────────
-    if not result:
-        _parsear_votos_cuerpo(texto, result)
+    # ── Fuente 2: cuerpo del DS (completa huecos que el SUMARIO no capturó) ──
+    _parsear_votos_cuerpo(texto, result)
 
     return result
 
@@ -433,7 +473,7 @@ def _parsear_resultado_sumario(texto: str) -> dict | None:
         abstenciones = int(m.group(4)) if m.group(4) else 0
 
         resultado = "aprobado" if re.search(r"aprueba|aprueban|convalida", accion) else "rechazado"
-        unanimidad = (contra == 0 and abstenciones == 0) or None
+        unanimidad = (contra == 0 and abstenciones == 0)
 
         return {
             "resultado": resultado,
@@ -447,6 +487,11 @@ def _parsear_resultado_sumario(texto: str) -> dict | None:
     # "son aprobados todos" / "son rechazados todos" (sin números)
     if re.search(r"son aprobados? todos?", texto_plano, re.I):
         return {"resultado": "aprobado", "unanimidad": None, "partidos": {},
+                "total_favor": 0, "total_contra": 0, "total_abstenciones": 0}
+
+    # "se aprueba por asentimiento" / "quedan aprobados por asentimiento"
+    if re.search(r"(?:se\s+aprueba|quedan?\s+aprobad|aprobad[ao]\s+por)\s+(?:de\s+acuerdo\s+)?por\s+asentimiento", texto_plano, re.I):
+        return {"resultado": "aprobado", "unanimidad": True, "partidos": {},
                 "total_favor": 0, "total_contra": 0, "total_abstenciones": 0}
 
     return None
@@ -483,7 +528,7 @@ def _parsear_votos_cuerpo(texto: str, result: dict):
         else:
             resultado = "rechazado"
 
-        unanimidad = (contra == 0 and abstenciones == 0) or None
+        unanimidad = (contra == 0 and abstenciones == 0)
 
         # Asignar al siguiente número sin resultado
         while siguiente_num in result:
@@ -555,10 +600,14 @@ CATEGORIAS_KEYWORDS: dict[str, list[str]] = {
 
 def clasificar_categoria(titulo: str, texto: str = "") -> str:
     contenido = (titulo + " " + texto).lower()
+    scores: dict[str, int] = {}
     for categoria, keywords in CATEGORIAS_KEYWORDS.items():
-        if any(kw in contenido for kw in keywords):
-            return categoria
-    return "otro"
+        score = sum(1 for kw in keywords if kw in contenido)
+        if score:
+            scores[categoria] = score
+    if not scores:
+        return "otro"
+    return max(scores, key=lambda c: scores[c])
 
 
 def clasificar_tipo(titulo: str) -> str:
@@ -592,23 +641,52 @@ def clasificar_comision(titulo: str) -> str:
 
 # ── Grupo proponente ──────────────────────────────────────────────────────────
 
+# Mapeo de nombres/fragmentos de grupos parlamentarios a siglas de la BD
+_GRUPO_A_SIGLAS: list[tuple[str, str]] = [
+    (r"\bpopular\b",                                            "PP"),
+    (r"\bsocialista\b",                                         "PSOE"),
+    (r"\bvox\b",                                                "VOX"),
+    (r"\bsumar\b|\bmás\s+país\b|\bplurals?\b",                 "SUMAR"),
+    (r"\bjunts\b",                                              "Junts"),
+    (r"\besquerra\b",                                           "ERC"),
+    (r"\bbildu\b",                                              "EH Bildu"),
+    (r"\bvasco\b|\bnacionalistas?\s+vascos?\b|\bpnv\b",        "PNV"),
+    (r"\bmixto\b",                                              "Mixto"),
+]
+
+
+def _normalizar_grupo_a_siglas(nombre: str) -> str:
+    """Convierte nombre largo de grupo parlamentario a las siglas de la BD."""
+    nombre_lower = nombre.lower()
+    for patron, siglas in _GRUPO_A_SIGLAS:
+        if re.search(patron, nombre_lower):
+            return siglas
+    return nombre
+
+
 def extraer_grupo_proponente_raw(titulo: str, texto: str = "") -> str | None:
-    """Extrae el grupo proponente. Para el Congreso suele estar en el propio título."""
+    """
+    Extrae el grupo proponente del título o del cuerpo y lo normaliza a siglas de BD.
+    """
+    nombre = None
     m = re.match(
-        r"Del Grupo Parlamentar(?:io|i)\s+(.+?)(?:,\s*(?:relativa|sobre|por|acerca)|\.|\Z)",
+        r"Del\s+Grupo\s+Parlamentar(?:io|i)\s+(.+?)(?:,\s*(?:relativa|sobre|por|acerca|en\s+rel)|\.|\Z)",
         titulo or "", re.I,
     )
     if m:
-        return m.group(1).strip()
-    # Buscar en fragmento del cuerpo
-    m = re.search(
-        r"(?:presentada|formulada|propuesta)\s+por\s+el\s+(?:Grupo\s+Parlamentar[^\n,]{2,50})",
-        (texto or "")[:600], re.I,
-    )
-    if m:
-        grupo = re.sub(r"^(presentada|formulada|propuesta)\s+por\s+el\s+", "", m.group(0), flags=re.I)
-        return grupo.strip()[:80]
-    return None
+        nombre = m.group(1).strip()
+    else:
+        # Buscar en fragmento del cuerpo
+        m = re.search(
+            r"(?:presentada|formulada|propuesta)\s+por\s+el\s+(?:Grupo\s+Parlamentar[^\n,]{2,60})",
+            (texto or "")[:800], re.I,
+        )
+        if m:
+            nombre = re.sub(
+                r"^(presentada|formulada|propuesta)\s+por\s+el\s+", "", m.group(0), flags=re.I,
+            ).strip()[:80]
+
+    return _normalizar_grupo_a_siglas(nombre) if nombre else None
 
 
 # ── Relevancia social ─────────────────────────────────────────────────────────
@@ -664,20 +742,26 @@ def calcular_relevancia_social(
 
 # ── Fragmento de texto por punto ──────────────────────────────────────────────
 
-def _extraer_fragmento(texto: str, numero: int) -> str:
+def _extraer_fragmento(texto: str, numero: int,
+                       expediente: str | None = None, titulo: str = "") -> str:
     """
-    Para el Congreso, el extracto más rico es el SUMARIO.
-    Busca el bloque del n-ésimo item en el SUMARIO.
+    Devuelve el fragmento más informativo para el punto N.
+    Estrategia: intenta extraer del cuerpo del DS (donde está el debate);
+    si falla, cae al bloque del SUMARIO (solo título + resultado).
     """
+    # 1. Intentar localizar el fragmento en el cuerpo del DS
+    cuerpo = _extraer_fragmento_cuerpo(texto, expediente, titulo)
+    if cuerpo:
+        return cuerpo
+
+    # 2. Fallback: bloque del SUMARIO para el N-ésimo item
     m_ini = re.search(r"\bSUMARIO\b", texto, re.I)
     if not m_ini:
         return ""
 
-    # Buscar SESIÓN PLENARIA después del SUMARIO (la que está en cabecera no vale)
     m_fin_body = re.search(r"\bSESI[ÓO]N PLENARIA\b", texto[m_ini.end():], re.I)
     sumario = texto[m_ini.end(): m_ini.end() + (m_fin_body.start() if m_fin_body else 15_000)]
 
-    # Encontrar el n-ésimo item (—) en el SUMARIO
     items = list(re.finditer(r"(?:^|\n)[—\-—]\s+", sumario, re.MULTILINE))
     if not items or numero > len(items):
         return ""
@@ -687,43 +771,95 @@ def _extraer_fragmento(texto: str, numero: int) -> str:
     return sumario[inicio:fin][:3000]
 
 
+def _extraer_fragmento_cuerpo(texto: str, expediente: str | None,
+                               titulo: str = "") -> str:
+    """
+    Busca en el cuerpo del DS (después de SESIÓN PLENARIA) el fragmento
+    correspondiente a un punto. Usa el expediente como ancla principal;
+    si no hay expediente o no se encuentra, cae a keywords del título.
+    Devuelve hasta 4000 chars del contexto de debate.
+    """
+    m_sesion = re.search(r"\bSESI[ÓO]N PLENARIA\b", texto, re.I)
+    if not m_sesion:
+        return ""
+    cuerpo = texto[m_sesion.start():]
+
+    m = None
+    if expediente:
+        # Intento 1: búsqueda exacta del expediente
+        m = re.search(re.escape(expediente), cuerpo)
+        if not m:
+            # Intento 2: tolerar espacio tras la barra ("162/ 000745")
+            partes = expediente.split("/")
+            if len(partes) == 2:
+                patron = re.escape(partes[0]) + r"/\s*" + re.escape(partes[1].lstrip("0")) + r"\b"
+                m = re.search(patron, cuerpo)
+
+    if not m and titulo:
+        # Fallback: las 2 palabras más largas del título como anclas de proximidad
+        palabras = sorted(
+            re.findall(r"\b[a-záéíóúñü]{8,}\b", titulo.lower()),
+            key=len, reverse=True,
+        )[:3]
+        if len(palabras) >= 2:
+            patron_kw = re.escape(palabras[0]) + r"[^.]{0,300}" + re.escape(palabras[1])
+            m = re.search(patron_kw, cuerpo, re.I | re.DOTALL)
+        elif len(palabras) == 1:
+            m = re.search(re.escape(palabras[0]), cuerpo, re.I)
+
+    if not m:
+        return ""
+
+    inicio = max(0, m.start() - 300)
+    return cuerpo[inicio: m.start() + 4000]
+
+
 # ── Resúmenes con Claude CLI ──────────────────────────────────────────────────
 
-PROMPT_RESUMEN_PLENO = """Eres el redactor de Acta Civium, publicación ciudadana sobre el Congreso de los Diputados.
+PROMPT_RESUMEN_PLENO = """Eres redactor de Acta Civium, medio ciudadano sobre el Congreso de los Diputados.
 
-Escribe un resumen de 2-3 frases del pleno: qué temas dominaron, qué decisiones clave se tomaron y cuál es su impacto para la ciudadanía. Tono neutro con mirada crítica al impacto social y ambiental. Destaca si hubo decisiones polémicas o rechazadas. Solo el texto, sin JSON, sin markdown, sin introducción.
+Escribe un resumen de 3-4 frases del pleno:
+1. Qué temas o leyes dominaron la sesión.
+2. La decisión más importante aprobada y su impacto ciudadano.
+3. Si hubo alguna votación rechazada o especialmente reñida, menciónala.
+4. Balance general: ¿fue una sesión de consenso o de confrontación?
+
+Tono neutro, lenguaje ciudadano, mirada crítica al impacto social. Solo el texto, sin markdown, sin JSON, sin introducción.
 
 TEXTO DEL DIARIO DE SESIONES:
 {texto}
 """
 
 SYSTEM_RESUMEN_PUNTO = (
-    "Eres un redactor de Acta Civium, publicación ciudadana sobre el Congreso de los Diputados. "
-    "Escribe un resumen de 1-2 frases en castellano explicando qué se decidió y cuál es el impacto "
-    "para la ciudadanía. NUNCA hagas preguntas. Escribe DIRECTAMENTE el resumen como texto plano."
+    "Eres redactor de Acta Civium, medio ciudadano sobre el Congreso de los Diputados. "
+    "Escribe 1-2 frases en castellano. Empieza directamente con 'El Congreso aprobó/rechazó/debatió...'. "
+    "Explica qué se decidió y qué significa para la ciudadanía en lenguaje llano. "
+    "NUNCA empieces con 'Este punto', 'La iniciativa', 'Se trata de' ni hagas preguntas. "
+    "Texto plano, sin markdown."
 )
 
-PROMPT_RESUMEN_PUNTO = """Genera un resumen de 1-2 frases de este punto del orden del día del pleno del Congreso:
+PROMPT_RESUMEN_PUNTO = """Resume en 1-2 frases este punto del pleno del Congreso:
 
 Título: {titulo}
 Resultado: {resultado}
-Texto del Diario de Sesiones: {texto}
+Texto: {texto}
 
-Escribe solo el resumen, sin introducción."""
+Empieza con el verbo de acción (aprobó, rechazó, debatió…). Sin introducción."""
 
 SYSTEM_TITULO_PUNTO = (
-    "Eres un redactor de Acta Civium, publicación ciudadana sobre el Congreso de los Diputados. "
-    "Reescribe el título de un punto del orden del día para que sea una frase completa, clara "
-    "y comprensible. Máximo 85 caracteres. Sin puntos suspensivos. Solo el título, sin comillas."
+    "Eres redactor de Acta Civium. Reescribe el título de un punto parlamentario "
+    "en voz activa y lenguaje ciudadano. Máximo 90 caracteres. "
+    "Evita 'Del Grupo Parlamentario X, relativa a…' — describe directamente QUÉ se propone. "
+    "Sin comillas, sin puntos suspensivos. Solo el título."
 )
 
-PROMPT_TITULO_PUNTO = """Reescribe este título para que sea claro y comprensible:
+PROMPT_TITULO_PUNTO = """Reescribe este título parlamentario en lenguaje claro y directo:
 
 Título original: {titulo}
 Resultado: {resultado}
-Fragmento: {texto}
+Contexto: {texto}
 
-Solo el título reescrito, máximo 85 caracteres."""
+Solo el título reescrito (máx. 90 caracteres), en voz activa."""
 
 SYSTEM_RESUMEN_PLENO = (
     "Eres un redactor de Acta Civium. Escribe DIRECTAMENTE el resumen como texto plano, "
@@ -752,7 +888,11 @@ def generar_resumen_punto(titulo: str, resultado: str, texto: str) -> str | None
 def _titulo_necesita_reescritura(titulo: str) -> bool:
     if not titulo or len(titulo.split()) < 4:
         return True
-    if len(titulo) > 85:
+    # Formato burocrático del Congreso: "Del Grupo Parlamentario X, relativa a..."
+    if re.match(r"Del\s+Grupo\s+Parlamentar", titulo, re.I):
+        return True
+    # Solo reescribir si es excesivamente largo o claramente incompleto
+    if len(titulo) > 130:
         return True
     if re.search(r"\b(el|la|de|del|por|en|con|a|al|un|una|para|que|y|o)\s*$", titulo, re.I):
         return True
